@@ -114,6 +114,14 @@ export function Menu() {
               </ul>
             )}
           </div>
+          <div className="mt-8 text-center">
+            <a
+              href="/menu"
+              className="inline-flex items-center gap-2 rounded-full border border-emas/40 px-6 py-3 text-sm font-semibold text-emas transition hover:bg-emas hover:text-ink"
+            >
+              Lihat menu lengkap →
+            </a>
+          </div>
         </Reveal>
       </div>
     </section>
