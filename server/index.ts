@@ -3,6 +3,7 @@ import express from "express"
 import cors from "cors"
 import { db } from "./db"
 import dishesRouter from "./routes/dishes"
+import sambalsRouter from "./routes/sambals"
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -15,6 +16,7 @@ app.get("/api/health", (_req, res) => {
 })
 
 app.use("/api/dishes", dishesRouter)
+app.use("/api/sambals", sambalsRouter)
 
 if (process.env.NODE_ENV !== "test") {
   app.listen(PORT, () => {
