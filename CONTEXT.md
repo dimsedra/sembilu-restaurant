@@ -65,10 +65,10 @@ Custom TypeScript backend using **Express** (chosen deliberately for learning ov
 
 Staff members (waiters, chefs, managers) authenticate via `POST /api/staff/login` with email and password. Passwords are hashed using `bcryptjs`. On successful login, the server returns a stateless JSON Web Token (JWT) signed with `JWT_SECRET`. The token payload contains `{ staff_id, role, branch_id }` and expires after 8 hours. Protected staff endpoints (`/api/staff/*`) require an `Authorization: Bearer <token>` header, verified by Express auth middleware.
 
-## Kitchen Display System (KDS)
+## Kitchen Display System (KDS) & Staff Order Management
 
+A real-time screen in the kitchen showing incoming orders grouped by table. Chefs and waiters manage order item lifecycles (`PATCH /api/staff/orders/:id/items/:itemId`). Item statuses enforce a strict state machine (`pending` ➔ `cooking` ➔ `done`). Requests are authenticated via JWT and automatically branch-scoped (`req.staff.branch_id`), with managers allowed cross-branch queries (`?branch_id=X`). Updating item statuses automatically propagates to the parent order status (first item cooking ➔ order `cooking`; all items done ➔ order `done`).
 
-A real-time screen in the kitchen showing incoming orders grouped by table. Chefs mark items as "cooking" → "done." Status changes push instantly to the waiter's view. This is the core of the "live food monitoring" feature — it's for both the customer (tracking their order) and the kitchen (managing the queue).
 
 ## Design system reference
 
