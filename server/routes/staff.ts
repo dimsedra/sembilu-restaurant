@@ -29,6 +29,9 @@ export function getJwtSecret(): string {
   throw new Error("JWT_SECRET environment variable is missing.")
 }
 
+export const VALID_STAFF_ROLES = ["waiter", "chef", "manager"] as const
+export type StaffRole = (typeof VALID_STAFF_ROLES)[number]
+
 /**
  * Type guard to validate JWT payload structure at runtime
  */
@@ -40,9 +43,11 @@ export function isValidStaffPayload(decoded: unknown): decoded is StaffPayload {
   return (
     typeof payload.staff_id === "number" &&
     typeof payload.role === "string" &&
+    VALID_STAFF_ROLES.includes(payload.role as StaffRole) &&
     typeof payload.branch_id === "number"
   )
 }
+
 
 /**
  * Middleware: Verifies Bearer JWT token in Authorization header

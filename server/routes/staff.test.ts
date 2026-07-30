@@ -112,11 +112,15 @@ describe("Staff Auth API", () => {
   describe("JWT Secret & Runtime Payload Validation Unit Helpers", () => {
     it("validates StaffPayload structure correctly", () => {
       expect(isValidStaffPayload({ staff_id: 1, role: "waiter", branch_id: 1 })).toBe(true)
+      expect(isValidStaffPayload({ staff_id: 1, role: "chef", branch_id: 1 })).toBe(true)
+      expect(isValidStaffPayload({ staff_id: 1, role: "manager", branch_id: 1 })).toBe(true)
+      expect(isValidStaffPayload({ staff_id: 1, role: "hacker", branch_id: 1 })).toBe(false)
       expect(isValidStaffPayload({ staff_id: "1", role: "waiter", branch_id: 1 })).toBe(false)
       expect(isValidStaffPayload({ staff_id: 1, role: 123, branch_id: 1 })).toBe(false)
       expect(isValidStaffPayload(null)).toBe(false)
       expect(isValidStaffPayload("string-payload")).toBe(false)
     })
+
 
     it("throws an error in production when JWT_SECRET is missing", () => {
       const originalEnv = process.env.NODE_ENV
