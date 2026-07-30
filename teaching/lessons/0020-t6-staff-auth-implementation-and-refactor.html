@@ -2,183 +2,168 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Lesson 20: T6 Staff Auth Implementation & Deep Code Walkthrough</title>
+  <title>Lesson 20: T6 Staff Auth — Code Walkthrough & Beginner Glossary</title>
   <link rel="stylesheet" href="../assets/lesson.css">
   <style>
-    .concept-box { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.2rem; margin: 1.5rem 0; box-shadow: 0 2px 4px rgba(0,0,0,0.04); }
-    .concept-box h3 { margin-top: 0; color: #b84a30; }
+    .glossary-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 0.5rem 1rem; background: #fff; padding: 1rem; border-radius: 6px; border: 1px solid #ddd; margin: 1rem 0; font-size: 0.9rem; }
+    .glossary-grid dt { font-weight: bold; color: #b84a30; font-family: monospace; }
+    .glossary-grid dd { margin: 0; color: #333; }
+    .line-explain { background: #fdfaf3; border-left: 3px solid #c9a24b; padding: 0.6rem 1rem; margin: 0.5rem 0 1.2rem; font-size: 0.9rem; }
+    .line-explain ul { margin: 0; padding-left: 1.2rem; }
+    .line-explain li { margin-bottom: 0.3rem; }
     .badge { display: inline-block; background: #c9a24b; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; margin-right: 6px; }
-    .badge.green { background: #2e7d32; }
-    .badge.blue { background: #1565c0; }
-    .line-breakdown { margin: 1rem 0; padding-left: 0; list-style: none; }
-    .line-breakdown li { background: #fdfcf7; border-left: 3px solid #c9a24b; margin-bottom: 0.6rem; padding: 0.5rem 0.8rem; border-radius: 0 4px 4px 0; font-size: 0.95rem; }
-    .line-breakdown code { background: #e8e3d5; color: #14110d; font-weight: bold; }
   </style>
 </head>
 <body>
 
-<h1>T6 Staff Auth: Code Walkthrough & Line-by-Line Breakdown</h1>
-<div class="subtitle">Lesson 0020 · Sembilu Operating System · Learning Priority #1</div>
+<h1>T6 Staff Auth: Line-by-Line Code Walkthrough & Glossary</h1>
+<div class="subtitle">Lesson 0020 · Beginner-Friendly Guide · Sembilu Operating System</div>
 
 <p>
-  Welcome! You asked for a line-by-line breakdown of every piece of code we implemented for <strong>T6 (Staff Authentication)</strong>. Let's walk through every single block together so you understand exactly what each line does and why it was written that way.
+  Welcome! In this guide, every single line of code we wrote for <strong>Staff Authentication (T6)</strong> is explained in plain English, with real-world restaurant analogies so you don't need to guess what any term or syntax means.
 </p>
 
 <hr>
 
-<h2>1. The Runtime Type Guard (<code>isValidStaffPayload</code>)</h2>
-<p>This helper in <code>server/routes/staff.ts</code> ensures that untrusted JWT data is validated before our server touches it.</p>
+<h2>📚 1. Beginner's Code Glossary</h2>
+<p>Here are the common terms used in backend TypeScript code:</p>
 
-<pre><code>export const VALID_STAFF_ROLES = ["waiter", "chef", "manager"] as const;
-export type StaffRole = (typeof VALID_STAFF_ROLES)[number];
+<dl class="glossary-grid">
+  <dt>export</dt>
+  <dd>Makes a function, variable, or type available for other files to import and use.</dd>
+
+  <dt>interface</dt>
+  <dd>A blueprint describing the exact shape an object must have (e.g. what properties it contains).</dd>
+
+  <dt>type guard</dt>
+  <dd>A function that inspects data at runtime and confirms to TypeScript: <em>"Yes, this unknown box definitely holds a StaffPayload!"</em></dd>
+
+  <dt>middleware</dt>
+  <dd>A security bouncer function sitting between the incoming web request and your route handler.</dd>
+
+  <dt>req.headers</dt>
+  <dd>The envelope sent by the browser or mobile app containing metadata like authorization tokens.</dd>
+
+  <dt>Bearer token</dt>
+  <dd>An HTTP authentication format where holding the token string is proof of access (like holding a VIP ticket).</dd>
+
+  <dt>jwt.verify()</dt>
+  <dd>A function that checks whether a token's digital signature is genuine and hasn't expired.</dd>
+
+  <dt>next()</dt>
+  <dd>The green-light signal in Express telling the server: <em>"Security check passed, proceed to the next step!"</em></dd>
+</dl>
+
+<hr>
+
+<h2>🧩 2. Line-by-Line Code Breakdown</h2>
+
+<h3>Block 1: Staff Role Blueprint & Interface</h3>
+<pre><code>export const VALID_STAFF_ROLES = ["waiter", "chef", "manager"] as const
+export type StaffRole = (typeof VALID_STAFF_ROLES)[number]
 
 export interface StaffPayload {
-  staff_id: number;
-  role: StaffRole;
-  branch_id: number;
-}
+  staff_id: number
+  role: StaffRole
+  branch_id: number
+}</code></pre>
 
-export function isValidStaffPayload(decoded: unknown): decoded is StaffPayload {
-  if (typeof decoded !== "object" || decoded === null) {
-    return false;
+<div class="line-explain">
+  <strong>Line-by-Line Explanation:</strong>
+  <ul>
+    <li><code>const VALID_STAFF_ROLES = [...] as const</code>: Defines a fixed list of allowed roles. <code>as const</code> tells TypeScript these 3 strings can never change.</li>
+    <li><code>type StaffRole</code>: Automatically creates a type that means exactly <code>"waiter" | "chef" | "manager"</code>.</li>
+    <li><code>interface StaffPayload</code>: The blueprint of data packed inside Wati's JWT token (her staff ID number, her job role, and her restaurant branch ID).</li>
+  </ul>
+</div>
+
+<h3>Block 2: Secret Key Checker (<code>getJwtSecret</code>)</h3>
+<pre><code>export function getJwtSecret(): string {
+  if (process.env.JWT_SECRET) {
+    return process.env.JWT_SECRET
   }
-  const payload = decoded as Record&lt;string, unknown&gt;;
+  if (process.env.NODE_ENV === "test" || process.env.NODE_ENV === "development" || !process.env.NODE_ENV) {
+    return "sembilu-dev-secret"
+  }
+  throw new Error("JWT_SECRET environment variable is missing.")
+}</code></pre>
+
+<div class="line-explain">
+  <strong>Line-by-Line Explanation:</strong>
+  <ul>
+    <li><code>if (process.env.JWT_SECRET)</code>: Checks if a custom secret key was set in our <code>.env</code> file. If found, use it!</li>
+    <li><code>if (process.env.NODE_ENV === "test" ...)</code>: In local dev or automated tests, return <code>"sembilu-dev-secret"</code> so developers can code without extra setup.</li>
+    <li><code>throw new Error(...)</code>: In production, if no secret was provided, <strong>STOP immediately</strong>! Operating without a secret in production is unsafe.</li>
+  </ul>
+</div>
+
+<h3>Block 3: Runtime Type Guard (<code>isValidStaffPayload</code>)</h3>
+<pre><code>export function isValidStaffPayload(decoded: unknown): decoded is StaffPayload {
+  if (typeof decoded !== "object" || decoded === null) {
+    return false
+  }
+  const payload = decoded as Record&lt;string, unknown&gt;
   return (
     typeof payload.staff_id === "number" &&
     Number.isInteger(payload.staff_id) &&
-    payload.staff_id > 0 &&
+    payload.staff_id &gt; 0 &&
     typeof payload.role === "string" &&
     (VALID_STAFF_ROLES as readonly string[]).includes(payload.role) &&
     typeof payload.branch_id === "number" &&
     Number.isInteger(payload.branch_id) &&
-    payload.branch_id > 0
-  );
+    payload.branch_id &gt; 0
+  )
 }</code></pre>
 
-<h3>Line-by-Line Breakdown:</h3>
-<ul class="line-breakdown">
-  <li>
-    <code>export const VALID_STAFF_ROLES = ["waiter", "chef", "manager"] as const</code><br>
-    <strong>What it does:</strong> Defines the 3 exact roles allowed in Sembilu. The <code>as const</code> tells TypeScript this array is immutable and its elements are literal string types <code>"waiter" | "chef" | "manager"</code>.
-  </li>
-  <li>
-    <code>export type StaffRole = (typeof VALID_STAFF_ROLES)[number]</code><br>
-    <strong>What it does:</strong> Automatically creates a TypeScript type union equal to <code>"waiter" | "chef" | "manager"</code> directly from the array!
-  </li>
-  <li>
-    <code>decoded is StaffPayload</code><br>
-    <strong>What it does:</strong> This is a TypeScript <em>type predicate</em>. If this function returns <code>true</code>, TypeScript automatically casts <code>decoded</code> as a <code>StaffPayload</code> everywhere downstream!
-  </li>
-  <li>
-    <code>if (typeof decoded !== "object" || decoded === null) return false</code><br>
-    <strong>What it does:</strong> Safety check! Rejects primitive values (like numbers or strings) or <code>null</code> to prevent <code>Cannot read properties of null</code> runtime crashes.
-  </li>
-  <li>
-    <code>Number.isInteger(payload.staff_id) && payload.staff_id > 0</code><br>
-    <strong>What it does:</strong> Ensures the database ID is a valid positive integer (e.g. 1, 42), blocking <code>NaN</code>, <code>Infinity</code>, or negative numbers.
-  </li>
-  <li>
-    <code>VALID_STAFF_ROLES.includes(payload.role)</code><br>
-    <strong>What it does:</strong> Verifies the role is strictly one of Sembilu's 3 real positions, blocking forged roles like <code>"hacker"</code>.
-  </li>
-</ul>
+<div class="line-explain">
+  <strong>Line-by-Line Explanation:</strong>
+  <ul>
+    <li><code>decoded: unknown</code>: <code>unknown</code> means data from the outside world that we haven't inspected yet.</li>
+    <li><code>typeof decoded !== "object" || decoded === null</code>: If the data isn't an object, reject it immediately!</li>
+    <li><code>Number.isInteger(payload.staff_id) && payload.staff_id > 0</code>: Verifies the staff ID is a positive whole number (e.g. <code>1</code>, <code>2</code>).</li>
+    <li><code>VALID_STAFF_ROLES.includes(payload.role)</code>: Verifies the role is genuinely <code>"waiter"</code>, <code>"chef"</code>, or <code>"manager"</code> (rejecting fake roles like <code>"hacker"</code>).</li>
+  </ul>
+</div>
 
-<hr>
-
-<h2>2. The Bouncer Middleware (<code>requireStaffAuth</code>)</h2>
-<p>This Express middleware protects internal routes from unauthenticated or forged requests.</p>
-
+<h3>Block 4: Security Bouncer Middleware (<code>requireStaffAuth</code>)</h3>
 <pre><code>export function requireStaffAuth(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
-  const authHeader = req.headers.authorization;
-
+  const authHeader = req.headers.authorization
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    res.status(401).json({ error: "Authentication required. Missing Bearer token." });
-    return;
+    res.status(401).json({ error: "Authentication required. Missing Bearer token." })
+    return
   }
 
-  const token = authHeader.split(" ")[1];
-
+  const token = authHeader.split(" ")[1]
   try {
-    const secret = getJwtSecret();
-    const decoded = jwt.verify(token, secret);
-
+    const secret = getJwtSecret()
+    const decoded = jwt.verify(token, secret)
     if (!isValidStaffPayload(decoded)) {
-      res.status(401).json({ error: "Invalid token payload structure." });
-      return;
+      res.status(401).json({ error: "Invalid token payload structure." })
+      return
     }
-
-    req.staff = decoded;
-    next();
+    req.staff = decoded
+    next()
   } catch (_err) {
-    res.status(401).json({ error: "Invalid or expired token." });
+    res.status(401).json({ error: "Invalid or expired token." })
   }
 }</code></pre>
 
-<h3>Line-by-Line Breakdown:</h3>
-<ul class="line-breakdown">
-  <li>
-    <code>const authHeader = req.headers.authorization</code><br>
-    <strong>What it does:</strong> Reads the HTTP request header sent by the client. Expected format: <code>Authorization: Bearer &lt;jwt-token&gt;</code>.
-  </li>
-  <li>
-    <code>if (!authHeader || !authHeader.startsWith("Bearer "))</code><br>
-    <strong>What it does:</strong> If no header is attached, or if it doesn't start with <code>"Bearer "</code>, immediately reject with HTTP 401 Unauthorized.
-  </li>
-  <li>
-    <code>const token = authHeader.split(" ")[1]</code><br>
-    <strong>What it does:</strong> Splits <code>"Bearer eyJhbGci..."</code> by space and extracts just the raw token string <code>eyJhbGci...</code>.
-  </li>
-  <li>
-    <code>const decoded = jwt.verify(token, secret)</code><br>
-    <strong>What it does:</strong> Decodes the token and checks its cryptographic signature. If someone modified even 1 letter in the token, <code>jwt.verify</code> throws an error immediately!
-  </li>
-  <li>
-    <code>req.staff = decoded</code><br>
-    <strong>What it does:</strong> Attaches the decoded staff object (`{ staff_id, role, branch_id }`) directly to Express's <code>req</code> object so downstream routes know who is calling!
-  </li>
-  <li>
-    <code>next()</code><br>
-    <strong>What it does:</strong> Express signal to move forward to the actual endpoint handler (e.g. returning staff profile or placing orders).
-  </li>
-</ul>
-
-<hr>
-
-<h2>3. Database Seeding (<code>server/seeds/01_staff.ts</code>)</h2>
-<p>Decoupled DML file that populates initial development accounts for Wati (waiter), Budi (chef), and Teguh (manager).</p>
-
-<pre><code>export async function seed(knex: Knex): Promise<void> {
-  await knex("staff").del();
-
-  const passwordHash = await bcrypt.hash("password123", 10);
-
-  await knex("staff").insert([
-    { name: "Wati (Waiter)", email: "wati@sembilu.com", password_hash: passwordHash, role: "waiter", branch_id: 1 },
-    { name: "Budi (Chef)", email: "budi@sembilu.com", password_hash: passwordHash, role: "chef", branch_id: 1 },
-    { name: "Teguh (Manager)", email: "teguh@sembilu.com", password_hash: passwordHash, role: "manager", branch_id: 1 },
-  ]);
-}</code></pre>
-
-<h3>Line-by-Line Breakdown:</h3>
-<ul class="line-breakdown">
-  <li>
-    <code>await knex("staff").del()</code><br>
-    <strong>What it does:</strong> Clears existing staff rows first so re-running seeds is <em>idempotent</em> (doesn't fail due to duplicate email constraints).
-  </li>
-  <li>
-    <code>const passwordHash = await bcrypt.hash("password123", 10)</code><br>
-    <strong>What it does:</strong> Hashes <code>"password123"</code> with a salt cost factor of 10. The salt adds random data to guarantee unique hashes even for identical passwords.
-  </li>
-  <li>
-    <code>await knex("staff").insert([...])</code><br>
-    <strong>What it does:</strong> Inserts 3 pre-configured staff accounts linked to Branch 1 (Tegal) so you can test all 3 staff roles instantly.
-  </li>
-</ul>
+<div class="line-explain">
+  <strong>Line-by-Line Explanation:</strong>
+  <ul>
+    <li><code>const authHeader = req.headers.authorization</code>: Inspects the incoming request envelope for the security header.</li>
+    <li><code>authHeader.split(" ")[1]</code>: Takes <code>"Bearer eyJhbGci..."</code> and extracts the actual token string after the space.</li>
+    <li><code>jwt.verify(token, secret)</code>: Checks the digital signature against our secret key. If tampered with, it throws an error.</li>
+    <li><code>req.staff = decoded</code>: Attaches Wati's verified information directly onto the Express request object!</li>
+    <li><code>next()</code>: Calls Express's green-light function so the request moves forward to the route handler.</li>
+  </ul>
+</div>
 
 <hr>
 
 <p class="subtitle">
-  You now have full conceptual and line-by-line understanding of T6 Staff Authentication!
+  <strong>Learning Tip:</strong> You can open this file in your browser anytime: <br>
+  <code>file:///d:/Project Hub/sembilu-restaurant/teaching/lessons/0020-t6-staff-auth-implementation-and-refactor.html</code>
 </p>
 
 </body>
