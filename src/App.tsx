@@ -10,6 +10,7 @@ import { Locations } from "@/components/Locations"
 import { Reserve } from "@/components/Reserve"
 import { Footer } from "@/components/Footer"
 import { MenuPage } from "@/pages/MenuPage"
+import { OrderPage } from "@/pages/OrderPage"
 
 function MarqueeBand() {
   const items = [
@@ -73,6 +74,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/menu" element={<MenuPage />} />
+        <Route path="/order" element={<OrderPage />} />
       </Routes>
     </BrowserRouter>
   )

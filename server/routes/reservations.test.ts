@@ -5,6 +5,8 @@ import { db } from "../db"
 
 describe("POST /api/reservations", () => {
   afterEach(async () => {
+    await db("order_items").del()
+    await db("orders").del()
     await db("reservations").del()
     await db("customers").del()
   })

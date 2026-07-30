@@ -1,0 +1,69 @@
+import { describe, it, expect } from "vitest"
+import request from "supertest"
+import app from "../index"
+import { db } from "../db"
+
+describe("POST /api/orders", () => {
+  afterEach(async () => {
+    await db("order_items").del()
+    await db("orders").del()
+    await db("reservations").del()
+    await db("customers").del()
+  })
+
+  it("creates an order with items for a new customer", async () => {
+    const res = await request(app).post("/api/orders").send({
+      name: "Budi",
+      phone: "0813-1111-1111",
+      branch_id: 1,
+      table_number: 5,
+      items: [
+        { dish_id: 1, quantity: 2, sambal_id: 1, sambal_extra: false },
+        { dish_id: 3, quantity: 1, sambal_id: null, sambal_extra: false },
+      ],
+    })
+    expect(res.status).toBe(201)
+    expect(res.body.order.table_number).toBe(5)
+    expect(res.body.items).toHaveLength(2)
+    expect(res.body.customer.visit_count).toBe(1)
+  })
+
+  it("rejects dish not available at the branch", async () => {
+    const res = await request(app).post("/api/orders").send({
+      name: "Budi",
+      phone: "0813-2222-2222",
+      branch_id: 2,
+      table_number: 5,
+      items: [{ dish_id: 1, quantity: 1 }],
+    })
+    expect(res.status).toBe(400)
+  })
+})
+
+describe("GET /api/orders/:id", () => {
+  afterEach(async () => {
+    await db("order_items").del()
+    await db("orders").del()
+    await db("reservations").del()
+    await db("customers").del()
+  })
+
+  it("returns an order with items", async () => {
+    const create = await request(app).post("/api/orders").send({
+      name: "Sari",
+      phone: "0813-3333-3333",
+      branch_id: 1,
+      table_number: 3,
+      items: [{ dish_id: 1, quantity: 1 }],
+    })
+    const res = await request(app).get(`/api/orders/${create.body.order.id}`)
+    expect(res.status).toBe(200)
+    expect(res.body.order.id).toBe(create.body.order.id)
+    expect(res.body.items).toHaveLength(1)
+  })
+
+  it("returns 404 for unknown order", async () => {
+    const res = await request(app).get("/api/orders/99999")
+    expect(res.status).toBe(404)
+  })
+})
