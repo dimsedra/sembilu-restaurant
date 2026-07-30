@@ -30,6 +30,7 @@ export function OrderPage() {
   const [cart, setCart] = useState<CartItem[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState<{ orderId: number } | null>(null)
+  const [error, setError] = useState("")
 
   useEffect(() => {
     fetch("/api/dishes?branch_id=" + branchId).then((r) => r.json()).then(setDishes)
@@ -62,13 +63,13 @@ export function OrderPage() {
 
   const totalQty = cart.reduce((s, c) => s + c.quantity, 0)
   const freeSambalCount = totalQty
-  const usedSambalCount = cart.filter((c) => c.sambalId !== null).length
-  const extraSambalCount = cart.filter((c) => c.sambalExtra).length
+  const usedSambalCount = cart.reduce((s, c) => s + (c.sambalId ? c.quantity : 0), 0)
+  const extraSambalCount = cart.reduce((s, c) => s + (c.sambalExtra ? c.quantity : 0), 0)
   const dishTotal = cart.reduce((s, c) => s + c.dish.price * c.quantity, 0)
   const extraTotal = cart.reduce((s, c) => {
     if (!c.sambalExtra || !c.sambalId) return s
     const sambal = sambals.find((sm) => sm.id === c.sambalId)
-    return s + (sambal?.price || 0)
+    return s + (sambal?.price || 0) * c.quantity
   }, 0)
   const grandTotal = dishTotal + extraTotal
 
@@ -76,6 +77,7 @@ export function OrderPage() {
 
   const handleSubmit = async () => {
     setSubmitting(true)
+    setError("")
     try {
       const res = await fetch("/api/orders", {
         method: "POST",
@@ -96,10 +98,13 @@ export function OrderPage() {
       const data = await res.json()
       if (res.ok) {
         setResult({ orderId: data.order.id })
+      } else {
+        setError(data.error || "Gagal memproses pesanan")
       }
-    } finally {
-      setSubmitting(false)
+    } catch {
+      setError("Gagal terhubung ke server")
     }
+    setSubmitting(false)
   }
 
   if (result) {
@@ -273,6 +278,7 @@ export function OrderPage() {
               <span className="font-display text-2xl text-cream">Total</span>
               <span className="font-display text-3xl text-gold">Rp {grandTotal}.000</span>
             </div>
+            {error && <div className="mt-4 rounded-xl border border-bata/30 bg-bata/5 px-4 py-3 text-sm text-bata">{error}</div>}
             <div className="mt-8 flex justify-between">
               <button onClick={() => setStep(3)} className="rounded-full border border-line px-6 py-3 text-sm text-cream-dim hover:text-cream">Kembali</button>
               <button onClick={handleSubmit} disabled={submitting} className="rounded-full bg-emas px-8 py-3 text-sm font-semibold text-ink transition hover:bg-emas-bright disabled:opacity-50">
