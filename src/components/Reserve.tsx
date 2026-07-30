@@ -4,6 +4,7 @@ import { cn } from "@/utils/cn"
 import { Kawung, Reveal, SectionHeading } from "@/components/primitives"
 
 const cities = locations.map((l) => l.city)
+const branchIdMap: Record<string, number> = { Tegal: 1, Slawi: 2, Semarang: 3, Jakarta: 4 }
 const slots = ["11.30", "12.30", "18.00", "19.00", "19.30", "20.00"]
 const today = new Date().toISOString().slice(0, 10)
 
@@ -39,8 +40,7 @@ export function Reserve() {
   const total = useMemo(() => orderItems.reduce((s, it) => s + (counts[it.id] || 0) * it.price, 0), [counts])
   const qty = useMemo(() => Object.values(counts).reduce((a, b) => a + b, 0), [counts])
 
-  const branchId = locations.find((l) => l.city === branch)?.no
-  const branchIndex = cities.indexOf(branch) + 1
+  const branchId = branchIdMap[branch]
 
   const handleSubmit = async () => {
     if (!name || !phone) {
@@ -56,7 +56,7 @@ export function Reserve() {
         body: JSON.stringify({
           name,
           phone,
-          branch_id: branchIndex,
+          branch_id: branchId,
           date,
           time: time + ":00",
           party_size: pax,
