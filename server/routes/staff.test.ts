@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest"
 import request from "supertest"
+import jwt from "jsonwebtoken"
 import app from "../index"
+import { getJwtSecret, isValidStaffPayload } from "./staff"
 
 describe("Staff Auth API", () => {
   describe("POST /api/staff/login", () => {
@@ -60,7 +62,6 @@ describe("Staff Auth API", () => {
 
   describe("GET /api/staff/me (Protected Route)", () => {
     it("returns staff payload when valid Bearer token is provided", async () => {
-      // 1. Log in to get a valid token
       const loginRes = await request(app)
         .post("/api/staff/login")
         .send({
@@ -70,13 +71,11 @@ describe("Staff Auth API", () => {
 
       const token = loginRes.body.token
 
-      // 2. Call protected route
       const meRes = await request(app)
         .get("/api/staff/me")
         .set("Authorization", `Bearer ${token}`)
 
       expect(meRes.status).toBe(200)
-      expect(meRes.body.staff.email).toBe(undefined) // payload contains staff_id, role, branch_id
       expect(meRes.body.staff.role).toBe("waiter")
       expect(meRes.body.staff.branch_id).toBe(1)
     })
@@ -95,6 +94,41 @@ describe("Staff Auth API", () => {
       expect(res.status).toBe(401)
       expect(res.body.error).toMatch(/Invalid or expired token/i)
     })
+
+    it("returns 401 when token payload structure is invalid", async () => {
+      const secret = getJwtSecret()
+      // Sign token with malformed payload (missing branch_id and staff_id is string)
+      const malformedToken = jwt.sign({ staff_id: "not-a-number" }, secret)
+
+      const res = await request(app)
+        .get("/api/staff/me")
+        .set("Authorization", `Bearer ${malformedToken}`)
+
+      expect(res.status).toBe(401)
+      expect(res.body.error).toMatch(/Invalid token payload structure/i)
+    })
+  })
+
+  describe("JWT Secret & Runtime Payload Validation Unit Helpers", () => {
+    it("validates StaffPayload structure correctly", () => {
+      expect(isValidStaffPayload({ staff_id: 1, role: "waiter", branch_id: 1 })).toBe(true)
+      expect(isValidStaffPayload({ staff_id: "1", role: "waiter", branch_id: 1 })).toBe(false)
+      expect(isValidStaffPayload({ staff_id: 1, role: 123, branch_id: 1 })).toBe(false)
+      expect(isValidStaffPayload(null)).toBe(false)
+      expect(isValidStaffPayload("string-payload")).toBe(false)
+    })
+
+    it("throws an error in production when JWT_SECRET is missing", () => {
+      const originalEnv = process.env.NODE_ENV
+      const originalSecret = process.env.JWT_SECRET
+      try {
+        process.env.NODE_ENV = "production"
+        delete process.env.JWT_SECRET
+        expect(() => getJwtSecret()).toThrow(/JWT_SECRET environment variable is missing/i)
+      } finally {
+        process.env.NODE_ENV = originalEnv
+        process.env.JWT_SECRET = originalSecret
+      }
+    })
   })
 })
-

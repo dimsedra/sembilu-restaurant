@@ -4,7 +4,6 @@ import jwt from "jsonwebtoken"
 import { db } from "../db"
 
 const router = Router()
-const JWT_SECRET = process.env.JWT_SECRET || "sembilu-dev-secret"
 
 export interface StaffPayload {
   staff_id: number
@@ -15,6 +14,34 @@ export interface StaffPayload {
 // Custom request interface with attached staff info
 export interface AuthenticatedRequest extends Request {
   staff?: StaffPayload
+}
+
+/**
+ * Returns JWT secret from environment or throws error in production if missing.
+ */
+export function getJwtSecret(): string {
+  if (process.env.JWT_SECRET) {
+    return process.env.JWT_SECRET
+  }
+  if (process.env.NODE_ENV === "test" || process.env.NODE_ENV === "development" || !process.env.NODE_ENV) {
+    return "sembilu-dev-secret"
+  }
+  throw new Error("JWT_SECRET environment variable is missing.")
+}
+
+/**
+ * Type guard to validate JWT payload structure at runtime
+ */
+export function isValidStaffPayload(decoded: unknown): decoded is StaffPayload {
+  if (typeof decoded !== "object" || decoded === null) {
+    return false
+  }
+  const payload = decoded as Record<string, unknown>
+  return (
+    typeof payload.staff_id === "number" &&
+    typeof payload.role === "string" &&
+    typeof payload.branch_id === "number"
+  )
 }
 
 /**
@@ -35,7 +62,14 @@ export function requireStaffAuth(
   const token = authHeader.split(" ")[1]
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as StaffPayload
+    const secret = getJwtSecret()
+    const decoded = jwt.verify(token, secret)
+
+    if (!isValidStaffPayload(decoded)) {
+      res.status(401).json({ error: "Invalid token payload structure." })
+      return
+    }
+
     req.staff = decoded
     next()
   } catch (_err) {
@@ -76,7 +110,8 @@ router.post("/login", async (req: Request, res: Response) => {
       branch_id: staff.branch_id,
     }
 
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "8h" })
+    const secret = getJwtSecret()
+    const token = jwt.sign(payload, secret, { expiresIn: "8h" })
 
     // Omit password_hash from response
     const { password_hash: _hash, ...staffData } = staff
@@ -100,4 +135,3 @@ router.get("/me", requireStaffAuth, (req: AuthenticatedRequest, res: Response) =
 })
 
 export default router
-

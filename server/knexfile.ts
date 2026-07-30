@@ -11,6 +11,10 @@ const config: Knex.Config = {
     directory: resolve(__dirname, "migrations"),
     extension: "ts",
   },
+  seeds: {
+    directory: resolve(__dirname, "seeds"),
+    extension: "ts",
+  },
 }
 
 export default config

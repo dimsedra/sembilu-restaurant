@@ -4,6 +4,7 @@ import { db } from "./db"
 
 beforeAll(async () => {
   await db.migrate.latest()
+  await db.seed.run()
 })
 
 afterAll(async () => {
