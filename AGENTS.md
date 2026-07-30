@@ -15,3 +15,10 @@ Labels use the default five canonical names. See `docs/agents/triage-labels.md`.
 ### Domain docs
 
 Single-context — one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+## Core Priority & Teaching
+
+- **Primary Goal**: Learning #1, Product Shipped #2.
+- **Teaching Loop**: The user uses `/teach` before implementation (to build conceptual understanding) and after implementation (to reflect, reinforce storage strength, and document learning records in `teaching/learning-records/`).
+- **Communication Style**: Explain options, trade-offs, and concepts in simple, easy-to-digest language suitable for a learner.
+

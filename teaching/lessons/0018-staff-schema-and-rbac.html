@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 18: Staff Database Schema & RBAC Patterns</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<h1>Lesson 18: Staff Database Schema & Role Design</h1>
+<p class="subtitle">Lesson 18 · Single Table vs Separate Tables vs Multi-Table RBAC</p>
+
+<div class="story">
+  <strong>🏢 Sembilu Scenario:</strong> Sembilu has three staff roles: <em>Waiters</em> (who view tables & mark orders served), <em>Chefs</em> (who view the Kitchen Display System & mark dishes cooked), and <em>Managers</em> (who view sales & branch reports). How should we design the database to model these employees?
+</div>
+
+<h2>1. Why Do Multiple Options Exist?</h2>
+<p>
+  In database design, there is a constant tension between <strong>simplicity</strong> (getting things done fast with low cognitive load) and <strong>extensibility</strong> (supporting thousands of granular permissions across complex enterprise organizations).
+</p>
+
+<hr>
+
+<h2>2. Deconstructing the 3 Options</h2>
+
+<h3>Option A: Single Table with a Role Column (Single-Table Enum)</h3>
+
+<p>
+  <strong>Analogy:</strong> A single company employee directory binder. Every employee has a column called "Job Title" (Waiter, Chef, Manager).
+</p>
+
+<pre style="font-size:0.85rem;">
+staff
+┌────┬──────────────┬────────────────────────┬─────────────┬───────────┬───────────┐
+│ id │ name         │ email                  │ password_h  │ role      │ branch_id │
+├────┼──────────────┼────────────────────────┼─────────────┼───────────┼───────────┤
+│ 1  │ Wati         │ wati@sembilu.com       │ $2a$10$...  │ waiter    │ 1 (Tegal) │
+│ 2  │ Budi         │ budi@sembilu.com       │ $2a$10$...  │ chef      │ 1 (Tegal) │
+│ 3  │ Teguh        │ teguh@sembilu.com      │ $2a$10$...  │ manager   │ 1 (Tegal) │
+└────┴──────────────┴────────────────────────┴─────────────┴───────────┴───────────┘
+</pre>
+
+<ul>
+  <li><strong>Why it exists:</strong> To solve authentication & authorization with the smallest, deepest model possible. All employees log in the same way (email + password).</li>
+  <li><strong>Pros:</strong>
+    <ul>
+      <li><strong>1 SQL Query for Login:</strong> <code>SELECT * FROM staff WHERE email = ?</code></li>
+      <li><strong>Matches JWT 1:1:</strong> The payload `{ staff_id: 1, role: 'waiter', branch_id: 1 }` directly reflects DB columns.</li>
+      <li><strong>Zero duplication:</strong> All staff share login logic, password hashing, and branch foreign keys.</li>
+    </ul>
+  </li>
+  <li><strong>Cons:</strong> If a manager needs 20 special fields (like `bank_account_number`, `annual_salary`) that waiters don't have, those columns will be `NULL` for waiters.</li>
+  <li><strong>Best Use Case:</strong> Small to medium applications, restaurant OSs, and systems where staff roles are fixed and well-defined.</li>
+</ul>
+
+<hr>
+
+<h3>Option B: Separate Tables per Role (`waiters`, `chefs`, `managers`)</h3>
+
+<p>
+  <strong>Analogy:</strong> 3 separate binder notebooks in the office. One binder labeled "Waiters", one labeled "Chefs", one labeled "Managers".
+</p>
+
+<pre style="font-size:0.85rem;">
+waiters                 chefs                   managers
+┌────┬──────┬─────────┐ ┌────┬──────┬─────────┐ ┌────┬──────┬──────────────┐
+│ id │ name │ email   │ │ id │ name │ email   │ │ id │ name │ salary       │
+└────┴──────┴─────────┘ └────┴──────┴─────────┘ └────┴──────┴──────────────┘
+</pre>
+
+<ul>
+  <li><strong>Why it exists:</strong> Developers sometimes create this when different roles have completely different attributes and business logic.</li>
+  <li><strong>Pros:</strong> No `NULL` columns. `managers` can have salary columns without affecting `waiters`.</li>
+  <li><strong>Cons:</strong>
+    <ul>
+      <li><strong>Nightmare Login Logic:</strong> When someone submits an email to <code>POST /api/staff/login</code>, which table do you search? You have to search `waiters`, then `chefs`, then `managers`, or run a slow `UNION` query.</li>
+      <li><strong>Duplicated code & Foreign Keys:</strong> Every order item needs FKs pointing to 3 different tables.</li>
+    </ul>
+  </li>
+  <li><strong>Best Use Case:</strong> Almost <strong>NEVER</strong> for authentication. Only useful when entities are fundamentally different domain concepts (e.g., `customers` vs `staff`).</li>
+</ul>
+
+<hr>
+
+<h3>Option C: Multi-Table RBAC (Role-Based Access Control)</h3>
+
+<p>
+  <strong>Analogy:</strong> A high-security government building. Users have badges, badges have roles, and roles have granular permission slips (e.g., `orders:read`, `menu:write`, `reports:export`).
+</p>
+
+<pre style="font-size:0.8rem; line-height:1.6;">
+users               user_roles            roles                 role_permissions        permissions
+┌──────────┐        ┌─────────┬─────────┐ ┌─────────┬─────────┐ ┌─────────┬───────────┐ ┌──────────────┐
+│ id       │───────►│ user_id │ role_id ││ id      │ name    ││ role_id │ perm_id   ││ id           │
+│ email    │        └─────────┴─────────┘ ├─────────┼─────────┤ └─────────┴───────────┘ ├──────────────┤
+│ pass_hash│                              │ 1       │ Waiter  │◄───────────────────────│ orders:read  │
+└──────────┘                              │ 2       │ Chef    │                         │ kitchen:cook │
+                                          └─────────┴─────────┘                         └──────────────┘
+</pre>
+
+<ul>
+  <li><strong>Why it exists:</strong> Created for enterprise SaaS products (like Salesforce, AWS, or GitHub) where admins can invent custom roles with fine-grained permission checkboxes.</li>
+  <li><strong>Pros:</strong>
+    <ul>
+      <li><strong>Unlimited Flexibility:</strong> A user can have multiple roles (e.g., Chef + Manager).</li>
+      <li><strong>Dynamic Permissions:</strong> Admins can toggle individual permission checkboxes in a UI.</li>
+    </ul>
+  </li>
+  <li><strong>Cons:</strong>
+    <ul>
+      <li><strong>High Complexity:</strong> Requires 5 database tables and multi-table `JOIN` queries just to check if a user can click a button.</li>
+      <li><strong>High Cognitive Load:</strong> Overkill for apps with fixed, static roles.</li>
+    </ul>
+  </li>
+  <li><strong>Best Use Case:</strong> Enterprise SaaS, cloud portals, and multi-tenant applications with customizable admin panels.</li>
+</ul>
+
+<hr>
+
+<h2>3. Summary Comparison for Sembilu</h2>
+
+<table style="width:100%; border-collapse: collapse;">
+  <thead>
+    <tr style="border-bottom: 2px solid #ddd; text-align: left;">
+      <th style="padding: 8px;">Pattern</th>
+      <th style="padding: 8px;">Tables Needed</th>
+      <th style="padding: 8px;">Login Query Speed</th>
+      <th style="padding: 8px;">Cognitive Load</th>
+      <th style="padding: 8px;">Fit for Sembilu</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="border-bottom: 1px solid #eee;">
+      <td style="padding: 8px;"><strong>Option A: Single Table (role)</strong></td>
+      <td style="padding: 8px;">1 table (`staff`)</td>
+      <td style="padding: 8px;">⚡ Blazing (1 lookup)</td>
+      <td style="padding: 8px;">🟢 Very Low</td>
+      <td style="padding: 8px;">🌟 Perfect fit</td>
+    </tr>
+    <tr style="border-bottom: 1px solid #eee;">
+      <td style="padding: 8px;"><strong>Option B: Separate Tables</strong></td>
+      <td style="padding: 8px;">3+ tables</td>
+      <td style="padding: 8px;">🐢 Slow (3 lookups/UNION)</td>
+      <td style="padding: 8px;">🔴 Very High</td>
+      <td style="padding: 8px;">❌ Anti-pattern</td>
+    </tr>
+    <tr style="border-bottom: 1px solid #eee;">
+      <td style="padding: 8px;"><strong>Option C: Enterprise RBAC</strong></td>
+      <td style="padding: 8px;">5 tables</td>
+      <td style="padding: 8px;">🟡 Medium (4 JOINs)</td>
+      <td style="padding: 8px;">🟡 High</td>
+      <td style="padding: 8px;">⚠️ Over-engineered</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr>
+
+<h2>4. Summary Recommendation</h2>
+<blockquote style="background: #fdf8eb; border-left: 4px solid #c9a24b; padding: 12px 16px; margin: 16px 0;">
+  <strong>Option A (Single <code>staff</code> table with <code>role</code> column) is the gold standard choice for Sembilu:</strong><br>
+  It gives us an elegant, fast, 1-table design that matches our JWT token payload <code>{ staff_id, role, branch_id }</code> directly, making Express route middleware simple to write and easy to understand!
+</blockquote>
+
+<hr>
+
+<p style="font-size: 0.9rem; color: #555;">
+  <strong>Primary Resources:</strong><br>
+  • <a href="https://martinfowler.com/apsupp/roles.pdf" target="_blank">Martin Fowler: Role-Based Access Control Patterns</a><br>
+  • <a href="https://knexjs.org/guide/schema-builder.html" target="_blank">Knex.js Schema Builder Documentation</a>
+</p>
+
+<p class="callout">
+  💬 <strong>Next Step:</strong> Review this lesson, ask any questions about database schemas or roles, and then let's lock in Question 3 for our `/grill-with-docs` session!
+</p>
+
+</body>
+</html>

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 17: How JWT (JSON Web Token) Works Under the Hood</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<h1>Lesson 17: How JWT (JSON Web Token) Works</h1>
+<p class="subtitle">Lesson 17 · Deconstructing the 3 parts of a JWT: Header, Payload, and Signature</p>
+
+<div class="story">
+  <strong>📜 Sembilu Analogy:</strong> Imagine Manager Pak Teguh prints a staff badge for Waiter Wati. The badge states: <em>"Name: Wati, Role: Waiter, Branch: Tegal"</em>. To prevent Wati from changing her role to "Manager" with a pen, Pak Teguh stamps it with his secret <strong>Golden Wax Seal</strong>. Whenever Wati shows her badge to the chef, the chef checks if the wax seal matches Pak Teguh's seal. That's a JWT!
+</div>
+
+<h2>1. What Does a JWT Look Like?</h2>
+<p>
+  A JSON Web Token (JWT) is a long string separated by <strong>two dots (<code>.</code>)</strong> into <strong>three distinct parts</strong>:
+</p>
+
+<pre style="font-size:0.95rem; line-height:1.6; word-break: break-all;">
+<span style="color: #ff5555; font-weight: bold;">eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9</span>.<span style="color: #55ff55; font-weight: bold;">eyJzdGFmZl9pZCI6MSwicm9sZSI6IndhaXRlciIsImJyYW5jaF9pZCI6MX0</span>.<span style="color: #55ffff; font-weight: bold;">SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c</span>
+</pre>
+
+<ul>
+  <li><strong style="color:#ff5555;">Red Part:</strong> Header (Algorithm & Token Type)</li>
+  <li><strong style="color:#55ff55;">Green Part:</strong> Payload (The actual data — staff ID, role, branch)</li>
+  <li><strong style="color:#55ffff;">Blue Part:</strong> Signature (The secret wax seal that prevents tampering)</li>
+</ul>
+
+<hr>
+
+<h2>2. Deconstructing the 3 Parts</h2>
+
+<h3>Part 1: The Header (Red)</h3>
+<p>
+  Base64-URL encoded JSON that tells the server which hashing algorithm was used to sign the token (usually <code>HS256</code> = HMAC with SHA-256).
+</p>
+<pre><code>// Decodes to:
+{
+  "alg": "HS256",
+  "typ": "JWT"
+}</code></pre>
+
+<h3>Part 2: The Payload (Green)</h3>
+<p>
+  Base64-URL encoded JSON containing the <strong>Claims</strong> (the information about Wati).
+</p>
+
+<div class="callout">
+  ⚠️ <strong>Important Security Note:</strong> Base64 encoding is <strong>NOT encryption!</strong> Anyone who gets hold of a JWT can paste it into <a href="https://jwt.io" target="_blank">JWT.io</a> and read the payload. Therefore, <strong>never put sensitive secrets (like passwords or credit card numbers) in the JWT payload!</strong>
+</div>
+
+<pre><code>// Decodes to:
+{
+  "staff_id": 1,
+  "role": "waiter",
+  "branch_id": 1,
+  "iat": 1722340000, // Issued At (timestamp)
+  "exp": 1722426400  // Expiration (timestamp)
+}</code></pre>
+
+<h3>Part 3: The Signature (Blue)</h3>
+<p>
+  This is the magic part. The server takes the encoded Header, the encoded Payload, and combines them with a secret key stored on the server (<code>JWT_SECRET</code>) using HMAC-SHA256:
+</p>
+
+<pre><code>HMACSHA256(
+  base64UrlEncode(header) + "." + base64UrlEncode(payload),
+  JWT_SECRET
+)</code></pre>
+
+<hr>
+
+<h2>3. How Verification Works (Why Tampering Fails)</h2>
+
+<p>
+  Suppose Wati tries to edit her token payload in her browser from <code>"role": "waiter"</code> to <code>"role": "manager"</code>.
+</p>
+
+<pre style="font-size:0.8rem; line-height:1.7;">
+  Wati's Browser                           Express Server (JWT Middleware)
+        │                                              │
+        │  GET /api/staff/orders                       │
+        │  Authorization: Bearer <tampered_jwt>         │
+        │ ───────────────────────────────────────────► │
+        │                                              │ 1. Split token into Header, Payload, Signature
+        │                                              │ 2. Re-calculate Signature using server's JWT_SECRET:
+        │                                              │    expectedSig = HMAC(Header + "." + TamperedPayload, JWT_SECRET)
+        │                                              │ 3. Compare expectedSig with received Signature
+        │                                              │    ❌ THEY DO NOT MATCH!
+        │                                              │
+        │  ◄── 401 Unauthorized ("Invalid token") ─────│
+</pre>
+
+<blockquote style="background: #fdf8eb; border-left: 4px solid #c9a24b; padding: 12px 16px; margin: 16px 0;">
+  <strong>Key Insight:</strong> Because Wati does not know the server's secret key (<code>JWT_SECRET</code>), she cannot generate a valid signature for her tampered payload. The server rejects it instantly!
+</blockquote>
+
+<hr>
+
+<h2>4. How We Use JWT in Express (jsonwebtoken package)</h2>
+
+<p>In Node.js, we use the popular <code>jsonwebtoken</code> package:</p>
+
+<pre><code>import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-sembilu';
+
+// 1. Sign (Generate token on successful login)
+const token = jwt.sign(
+  { staff_id: staff.id, role: staff.role, branch_id: staff.branch_id },
+  JWT_SECRET,
+  { expiresIn: '8h' } // Token expires after 8-hour shift
+);
+
+// 2. Verify (Middleware on protected routes)
+try {
+  const decodedPayload = jwt.verify(token, JWT_SECRET);
+  req.staff = decodedPayload; // Attach to request object!
+  next(); // Pass to route handler
+} catch (err) {
+  res.status(401).json({ error: 'Invalid or expired token' });
+}</code></pre>
+
+<hr>
+
+<p style="font-size: 0.9rem; color: #555;">
+  <strong>Primary Resources:</strong><br>
+  • <a href="https://jwt.io" target="_blank">JWT.io Debugger & Handbook</a><br>
+  • <a href="https://github.com/auth0/node-jsonwebtoken" target="_blank">jsonwebtoken GitHub Library</a>
+</p>
+
+<p class="callout">
+  💬 <strong>Next Step:</strong> Review this lesson, ask any questions about signatures or Base64 encoding, and then let's lock in Question 2 for our `/grill-with-docs` session!
+</p>
+
+</body>
+</html>

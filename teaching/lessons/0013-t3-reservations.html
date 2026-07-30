@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 13: T3 Recap — Reservations</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<h1>T3 Recap: Customers + Reservations</h1>
+<p class="subtitle">Lesson 13 · The first POST endpoint — sending data TO the server, not just reading.</p>
+
+<div class="story">
+  <strong>👩‍🍳 Wati now has a reservation book.</strong> Before T3, when you said "I want to book
+  a table for Saturday," Wati would nod and hope she remembers. After T3, she pulls out her
+  reservation book, writes your name and phone number, and you're in the system. Next time
+  you call, she recognizes your number instantly.
+</div>
+
+<p>
+  T1 and T2 were all about <strong>reading</strong> data — GET requests. The server sends
+  data to the browser. T3 is the first time we <strong>write</strong> data — a POST request.
+  The browser sends data to the server, the server saves it to the database.
+</p>
+
+<h2>What changed from T1/T2?</h2>
+
+<table>
+  <tr><th></th><th>T1 & T2 (GET)</th><th>T3 (POST)</th></tr>
+  <tr><td>Request</td><td>Browser asks for data</td><td>Browser sends data</td></tr>
+  <tr><td>Data flow</td><td>Database → Server → Browser</td><td>Browser → Server → Database</td></tr>
+  <tr><td>Validation</td><td>None needed (just read)</td><td>Must check: are all fields filled? Does the branch exist?</td></tr>
+  <tr><td>Response</td><td><code>200 OK</code> + data</td><td><code>201 Created</code> + the new record</td></tr>
+  <tr><td>Testing</td><td>Just read and assert</td><td>Must clean up between tests</td></tr>
+</table>
+
+<h2>Two tables, not one</h2>
+
+<p>
+  T3 creates two database tables instead of one — because a reservation links a
+  <strong>customer</strong> to a <strong>time and place</strong>.
+</p>
+
+<pre style="font-size:0.8rem;">
+customers                          reservations
+┌─────────────────────┐            ┌─────────────────────────┐
+│ id (PK)             │◄──────────│ customer_id (FK)        │
+│ name                 │            │ branch_id (FK)          │
+│ phone (UNIQUE)       │            │ date                    │
+│ visit_count          │            │ time                    │
+│ notes                │            │ party_size              │
+│ created_at           │            │ status                  │
+└─────────────────────┘            └─────────────────────────┘
+</pre>
+
+<p>
+  Why two tables? Because one customer can make <strong>many</strong> reservations over time.
+  If we put name + phone inside the reservations table, we'd repeat that data every time
+  Budi books a table. By separating them, Budi's data lives in one place and each reservation
+  just points to his customer ID.
+</p>
+
+<h2>The "find or create" pattern</h2>
+
+<p>The key logic in the POST endpoint:</p>
+
+<pre><code>// Step 1: Is this phone number already in our system?
+let customer = await db("customers").where("phone", phone).first()
+
+if (customer) {
+  // Returning customer — increment their visit count
+  await db("customers").where("id", customer.id)
+    .increment("visit_count", 1)
+  customer = await db("customers").where("id", customer.id).first()
+} else {
+  // New customer — create a record
+  await db("customers").insert({ name, phone, visit_count: 1 })
+  customer = await db("customers").where("phone", phone).first()
+}
+
+// Step 2: Create the reservation linked to this customer
+await db("reservations").insert({
+  customer_id: customer.id,
+  branch_id, date, time, party_size
+})</code></pre>
+
+<p>This pattern — <strong>find or create</strong> — is everywhere in web apps. Login?
+"Find or create user by email." Add to cart? "Find or create cart by customer ID."</p>
+
+<h2>What happens when you book at Sembilu</h2>
+
+<pre style="font-size:0.8rem; line-height:1.7;">
+Your Browser                     Express                        PostgreSQL
+     │                              │                              │
+     │  POST /api/reservations       │                              │
+     │  { name: "Budi",             │                              │
+     │    phone: "0812-xxxx",        │                              │
+     │    branch_id: 1,             │                              │
+     │    date: "2026-08-15",       │                              │
+     │    time: "19:00",            │                              │
+     │    party_size: 4 }           │                              │
+     │ ─────────────────────────►  │                              │
+     │                              │  "Is Budi in customers?"    │
+     │                              │  SELECT * FROM customers    │
+     │                              │  WHERE phone = '0812-xxxx'  │
+     │                              │ ──────────────────────────► │
+     │                              │  "No, new customer"         │
+     │                              │ ◄────────────────────────── │
+     │                              │                              │
+     │                              │  "Create Budi"              │
+     │                              │  INSERT INTO customers      │
+     │                              │ ──────────────────────────► │
+     │                              │  "Done! ID = 7"            │
+     │                              │ ◄────────────────────────── │
+     │                              │                              │
+     │                              │  "Create reservation"       │
+     │                              │  INSERT INTO reservations   │
+     │                              │ ──────────────────────────► │
+     │                              │  "Done! ID = 42"           │
+     │                              │ ◄────────────────────────── │
+     │                              │                              │
+     │  201 Created                 │                              │
+     │  { reservation: {...},       │                              │
+     │    customer: {...} }         │                              │
+     │ ◄─────────────────────────  │                              │
+     │                              │                              │
+     │  "Terima kasih Budi!"        │                              │
+     │  Reservasi dikonfirmasi.     │                              │
+</pre>
+
+<h2>The test difference</h2>
+
+<p>
+  In T1 and T2, tests were simple — just read data and check. In T3, each test
+  <strong>writes</strong> data, so we need to clean up between tests:
+</p>
+
+<pre><code>afterEach(async () => {
+  await db("reservations").del()  // delete reservations first
+  await db("customers").del()      // then delete customers
+})</code></pre>
+
+<p>
+  Order matters here — you can't delete customers before reservations because the
+  foreign key would complain: "Can't delete customer #7, reservation #42 still
+  references them!" This is referential integrity in action.
+</p>
+
+<h2>The bug we found (and fixed)</h2>
+
+<p>During the code review, we found a problem:</p>
+
+<div class="callout">
+  <strong>Before fix:</strong> <code>branchIndex = cities.indexOf(branch) + 1</code>
+  — this computed the branch ID by finding the city's position in an array and adding 1.
+  If the array order changed (e.g., "Jakarta" moved before "Slawi"), a Jakarta reservation
+  would silently become a Slawi reservation.<br><br>
+  <strong>After fix:</strong> <code>branchIdMap: { Tegal: 1, Slawi: 2, Semarang: 3, Jakarta: 4 }</code>
+  — explicit mapping, independent of array order. Can't break.
+</div>
+
+<p>
+  This is a classic real-world lesson: <strong>never derive an ID from an array position.</strong>
+  Array order can change. An explicit map or a database lookup cannot.
+</p>
+
+<h2>What's next (T4)</h2>
+
+<p>
+  T4 (Orders API) will be another POST endpoint, but more complex — it needs to validate
+  that the ordered dishes actually belong to the chosen branch, handle multiple line items,
+  and calculate totals. The find-or-create pattern from T3 will serve as a foundation.
+</p>
+
+<hr>
+
+<p style="font-size:0.9rem; color:#888;">
+  <strong>Try it:</strong> Go to the homepage, scroll to Reservasi, fill in your details and
+  submit. Then check the database: <code>docker exec sembilu-db psql -U postgres -d sembilu -c "SELECT * FROM customers"</code><br><br>
+  <strong>Key takeaway:</strong> POST = sending data. Find-or-create = check first, then decide:
+  update existing or create new. Two tables instead of one when data has a "one-to-many"
+  relationship (one customer → many reservations).<br><br>
+  <strong>Confused?</strong> Ask. The find-or-create pattern is everywhere and worth understanding.
+</p>
+
+</body>
+</html>

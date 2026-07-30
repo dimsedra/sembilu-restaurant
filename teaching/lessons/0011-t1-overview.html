@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 11: T1 Recap — How Everything Connects</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<h1>T1 Recap: How Everything Connects</h1>
+<p class="subtitle">Lesson 11 · A walk through the first ticket — from database to browser.</p>
+
+<div class="story">
+  <strong>👩‍🍳 Last lesson, Wati learned the menu.</strong> Before T1, Wati had to memorize dishes
+  from a crumpled paper (the hardcoded <code>data.ts</code>). After T1, she has a proper
+  menu book (the database) and can recite any dish on command (the API).
+</div>
+
+<p>
+  T1 was our first <strong>vertical slice</strong> — it cuts through all four layers:
+  migration → API route → test → frontend page. Let's trace the path of a single dish
+  through each layer.
+</p>
+
+<h2>The path of Ikan Bakar Pantura</h2>
+
+<pre style="font-size:0.8rem; line-height:1.7;">
+1. MIGRATION                   2. API ROUTE                    3. BROWSER
+─────────────────             ─────────────────              ─────────────────
+                              ┌─ GET /api/dishes ──► fetch("/api/dishes")
+                              │                          │
+┌─ dishes table               │                          ▼
+│  ┌──────────────────┐       │  knex('dishes')      MenuPage.tsx
+│  │ id: 1 (latin)    │       │    .orderBy('id')     renders the list
+│  │ name: Ikan Bakar │       │    .select('*')       with aksara_no
+│  │ price: 89        │       │                          for display
+│  │ aksara_no: "꧑"  │       │  ───► SQL query ──►
+│  │ branch_id: 1     │       │  ◄─── JSON array ──
+│  └──────────────────┘       │
+│                             │  4. TEST (supertest)
+│  Seed: 7 dishes from        │  ┌─ request(app).get("/api/dishes")
+│  data.ts → PostgreSQL       │  │   expect(status).toBe(200)
+│                             │  │   expect(body.length).toBe(7)
+└─────────────────────────────┘  └──────────────────────────────
+</pre>
+
+<h2>Layer 1: The Migration</h2>
+
+<p>File: <code>server/migrations/20260730-create-dishes.ts</code></p>
+
+<pre><code>exports.up = (knex) => knex.schema.createTable("dishes", (t) => {
+  t.increments("id")           // ← auto-incrementing primary key
+  t.string("name")             // ← dish name
+  t.text("description")        // ← longer text
+  t.integer("price")           // ← number, stored in ribuan (89 = Rp 89.000)
+  t.string("tag").nullable()   // ← optional badge like "Unggulan"
+  t.string("aksara_no")        // ← Javanese numeral for display only
+  t.integer("branch_id")       // ← foreign key to branches table
+    .references("id")
+    .inTable("branches")
+    .notNullable()
+  t.timestamps()               // ← created_at + updated_at
+})</code></pre>
+
+<p><strong>What you said about IDs:</strong> The <code>id</code> column is a latin auto-incrementing
+number (1, 2, 3...). The <code>aksara_no</code> is the Javanese numeral (꧑, ꧒, ꧓...) for
+display only. The database never uses aksara for lookups.</p>
+
+<p>After creating the table, the migration <strong>seeds</strong> it with 7 dishes from
+<code>src/data.ts</code>, all assigned to branch 1 (Tegal).</p>
+
+<h2>Layer 2: The API Route</h2>
+
+<p>File: <code>server/routes/dishes.ts</code></p>
+
+<pre><code>// GET /api/dishes — returns all dishes
+router.get("/", async (req, res) => {
+  const query = db("dishes")
+  if (req.query.branch_id) {
+    query.where("branch_id", Number(req.query.branch_id))
+  }
+  const dishes = await query.orderBy("id")
+  res.json(dishes)
+})
+
+// GET /api/dishes/:id — returns one dish or 404
+router.get("/:id", async (req, res) => {
+  const dish = await db("dishes").where("id", Number(req.params.id)).first()
+  if (!dish) {
+    res.status(404).json({ error: "Dish not found" })
+    return
+  }
+  res.json(dish)
+})</code></pre>
+
+<p>Two endpoints, both use <strong>knex</strong> to build SQL queries:</p>
+<ul>
+  <li><code>knex('dishes')</code> = <code>SELECT * FROM dishes</code></li>
+  <li><code>.where('branch_id', 1)</code> = <code>WHERE branch_id = 1</code></li>
+  <li><code>.first()</code> = <code>LIMIT 1</code> (returns a single object, not an array)</li>
+</ul>
+
+<p>These are registered in <code>server/index.ts</code> with:</p>
+<pre><code>app.use("/api/dishes", dishesRouter)</code></pre>
+
+<p>So every request to <code>/api/dishes...</code> gets routed to this file.</p>
+
+<h2>Layer 3: The Test</h2>
+
+<p>File: <code>server/routes/dishes.test.ts</code></p>
+
+<pre><code>import request from "supertest"
+import app from "../index"
+
+it("returns all dishes", async () => {
+  const res = await request(app).get("/api/dishes")
+  expect(res.status).toBe(200)
+  expect(res.body.length).toBe(7)    // ← 7 seeded dishes
+  expect(res.body[0]).toHaveProperty("name")
+  expect(res.body[0]).toHaveProperty("price")
+})</code></pre>
+
+<p>We use <strong>Supertest</strong> to make fake HTTP requests — no real server port needed.
+The test sends a GET, and Supertest feeds it directly into the Express app in memory.
+If the route is missing, the query is wrong, or the response format changes, the test fails.</p>
+
+<div class="callout">
+  <strong>Why test this way?</strong> One test covers the route definition, the database query,
+  the response format, and the error handling. If we refactor the route internals later but
+  keep the same response, the test still passes — that's <strong>testing behavior, not
+  implementation</strong>.
+</div>
+
+<h2>Layer 4: The Frontend Page</h2>
+
+<p>Two files changed on the frontend:</p>
+
+<p><strong><code>src/pages/MenuPage.tsx</code></strong> — a new full-page view at <code>/menu</code>. It
+fetches from <code>/api/dishes</code> on mount and renders the dishes in the Candlelit Heirloom
+design (Fraunces headings, emas accents, aksara numerals).</p>
+
+<p><strong><code>src/components/Menu.tsx</code></strong> — the original homepage section. Previously
+it imported <code>signatureDishes</code> from <code>data.ts</code>. Now it fetches from
+<code>/api/dishes</code> like the full page does.</p>
+
+<p>The fetch is simple:</p>
+<pre><code>useEffect(() => {
+  fetch("/api/dishes")
+    .then(r => r.json())
+    .then(setDishes)
+}, [])</code></pre>
+
+<p>In development, this request goes to <code>localhost:5173/api/dishes</code> (the Vite dev
+server), and Vite's <strong>proxy</strong> forwards it to Express at
+<code>localhost:3001/api/dishes</code>. This is configured in <code>vite.config.ts</code>:</p>
+
+<pre><code>server: { proxy: { "/api": { target: "http://localhost:3001" } } }</code></pre>
+
+<p>Without the proxy, the frontend would have to use the full URL
+<code>http://localhost:3001/api/dishes</code>, which would break in production and cause
+CORS issues. The proxy makes it seamless.</p>
+
+<h2>The Big Picture</h2>
+
+<p>Here's what happens when someone visits <code>/menu</code>:</p>
+
+<pre style="font-size:0.8rem; line-height:1.7;">
+Browser                    Vite (5173)             Express (3001)          PostgreSQL
+  │                          │                        │                      │
+  │  GET /menu               │                        │                      │
+  │  React renders           │                        │                      │
+  │  MenuPage.tsx            │                        │                      │
+  │                          │                        │                      │
+  │  fetch("/api/dishes")    │                        │                      │
+  │ ──────────────────────►  │                        │                      │
+  │                          │  Proxy: /api → :3001   │                      │
+  │                          │ ──────────────────────►│                      │
+  │                          │                        │  SELECT * FROM       │
+  │                          │                        │  dishes ORDER BY id  │
+  │                          │                        │ ───────────────────► │
+  │                          │                        │                      │
+  │                          │                        │  ◄─── 7 rows ──────  │
+  │                          │  ◄─── JSON array ──────│                      │
+  │  ◄─── dishes array ──────│                        │                      │
+  │                          │                        │                      │
+  │  Renders 7 dishes in     │                        │                      │
+  │  brand design            │                        │                      │
+</pre>
+
+<hr>
+
+<p style="font-size:0.9rem; color:#888;">
+  <strong>The key takeaway:</strong> A vertical slice means you build one complete path from
+  database all the way to the browser. Not "all the database tables first" then "all the APIs"
+  then "all the pages." One feature, end to end, every time.<br><br>
+  <strong>Want to see it running?</strong> <code>npm run dev</code> starts both frontend and
+  backend. Visit <code>http://localhost:5173/menu</code>.<br><br>
+  <strong>Confused about any part?</strong> Pick a layer — migration, route, test, or page —
+  and I'll go deeper.
+</p>
+
+</body>
+</html>

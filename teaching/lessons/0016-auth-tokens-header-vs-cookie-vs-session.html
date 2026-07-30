@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 16: Authentication Tokens — Bearer Header vs HTTP-Only Cookie vs Server Sessions</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<h1>Lesson 16: Staff Authentication — How Servers Remember Who You Are</h1>
+<p class="subtitle">Lesson 16 · Understanding JWT Bearer Headers, Cookies, and Server Sessions from zero</p>
+
+<div class="story">
+  <strong>🏷️ Sembilu Analogy:</strong> When Waiter Wati arrives for her shift at SEMBILU Tegal, she logs in once. How does the server know it's still Wati 5 minutes later when she clicks "Mark Order as Cooking"? HTTP is <em>stateless</em> (it forgets you between every request). We need a mechanism to prove Wati's identity on every single request.
+</div>
+
+<h2>1. The Fundamental Problem: HTTP Has Memory Loss</h2>
+<p>
+  Every HTTP request is completely independent. When Wati's browser asks <code>GET /api/staff/orders</code>, Express has zero memory that 3 seconds ago Wati sent her password to <code>POST /api/staff/login</code>.
+</p>
+<p>
+  To solve this, after logging in, the server gives Wati a <strong>proof of identity</strong>. Wati's browser includes this proof on every single future request.
+</p>
+
+<hr>
+
+<h2>2. The Three Options Explained</h2>
+
+<h3>Option A: Stateless JWT in Authorization Header (Bearer Token)</h3>
+
+<p>
+  <strong>Analogy:</strong> The manager prints a tamper-proof <strong>Laminated Wristband</strong> (JWT) and hands it to Wati. Wati holds up her wristband whenever she enters the kitchen or asks for orders.
+</p>
+
+<pre style="font-size:0.8rem; line-height:1.6;">
+1. LOGIN: Wati posts email + password ──► Server checks DB ──► Generates JWT wristband
+2. SERVER RESPONSE: Returns { token: "eyJhbGciOi..." }
+3. FUTURE REQUESTS: Browser attached header on every call:
+   Authorization: Bearer eyJhbGciOi...
+4. VERIFICATION: Server inspects token signature using a secret key.
+   No database query needed! Token says: "I am Wati, Role: Waiter, Branch: Tegal".
+</pre>
+
+<ul>
+  <li><strong>What is a JWT (JSON Web Token)?</strong> A digitally signed string containing JSON data (like staff ID, role, and branch). Because it is signed with a secret key on the server, nobody can tamper with it (e.g. Wati can't change her role to "Manager").</li>
+  <li><strong>Pros:</strong> <strong>Stateless & Fast.</strong> The server doesn't have to look up Wati in the database on every single API request. Works perfectly across different domains/ports and in REST APIs.</li>
+  <li><strong>Cons:</strong> Stored in frontend JS memory/localStorage (vulnerable to XSS script injection if malicious code runs). Cannot be easily invalidated until it expires unless a blacklist is used.</li>
+</ul>
+
+<hr>
+
+<h3>Option B: HTTP-Only Cookie containing a JWT</h3>
+
+<p>
+  <strong>Analogy:</strong> The manager puts Wati's wristband in a <strong>Locked Metal Box</strong> (HTTP-Only Cookie). Wati carries the box. Every time she talks to the kitchen, the browser automatically shows the box. JavaScript running in Wati's phone cannot touch or inspect what's inside the box.
+</p>
+
+<pre style="font-size:0.8rem; line-height:1.6;">
+1. LOGIN: Server returns HTTP Response Header:
+   Set-Cookie: token=eyJhbGci...; HttpOnly; SameSite=Strict
+2. FUTURE REQUESTS: Browser automatically includes the cookie on every request:
+   Cookie: token=eyJhbGci...
+3. VERIFICATION: Server reads token from cookie and verifies signature.
+</pre>
+
+<ul>
+  <li><strong>Pros:</strong> <strong>Highly Secure against XSS.</strong> JavaScript cannot read HTTP-Only cookies, preventing malicious scripts from stealing the token.</li>
+  <li><strong>Cons:</strong> Slightly more complex setup (requires CORS credentials configuration if frontend and backend run on different ports in dev, e.g. 5173 vs 3000), and requires protection against CSRF (Cross-Site Request Forgery).</li>
+</ul>
+
+<hr>
+
+<h3>Option C: Stateful Server Session (Database / Redis)</h3>
+
+<p>
+  <strong>Analogy:</strong> Every time Wati makes a request, she says "I am Ticket #9482". The manager opens a giant physical ledger book in the office (Database/Redis), scans down line #9482, and checks if Wati is logged in and what her permissions are.
+</p>
+
+<pre style="font-size:0.8rem; line-height:1.6;">
+1. LOGIN: Server creates a row in `sessions` table: { id: "sess_9482", staff_id: 1 }
+2. SERVER RESPONSE: Sends session ID cookie `sess_9482`.
+3. FUTURE REQUESTS: Browser sends cookie `sess_9482`.
+4. VERIFICATION: Server runs a SQL query: SELECT * FROM sessions WHERE id = 'sess_9482'.
+</pre>
+
+<ul>
+  <li><strong>Pros:</strong> Easy to instantly revoke access (just delete the row in the database).</li>
+  <li><strong>Cons:</strong> <strong>Database Overhead.</strong> Every single API request (getting orders, changing table status, checking reservations) forces a database lookup just to check who is logged in.</li>
+</ul>
+
+<hr>
+
+<h2>3. Comparison Matrix for Sembilu</h2>
+
+<table style="width:100%; border-collapse: collapse;">
+  <thead>
+    <tr style="border-bottom: 2px solid #ddd; text-align: left;">
+      <th style="padding: 8px;">Criteria</th>
+      <th style="padding: 8px;">Option A: Bearer JWT Header</th>
+      <th style="padding: 8px;">Option B: HTTP-Only Cookie</th>
+      <th style="padding: 8px;">Option C: Server Session</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="border-bottom: 1px solid #eee;">
+      <td style="padding: 8px;"><strong>Database Load</strong></td>
+      <td style="padding: 8px;">⚡ 0 DB queries (Stateless)</td>
+      <td style="padding: 8px;">⚡ 0 DB queries (Stateless)</td>
+      <td style="padding: 8px;">🐢 1 DB query per request</td>
+    </tr>
+    <tr style="border-bottom: 1px solid #eee;">
+      <td style="padding: 8px;"><strong>REST API Standard</strong></td>
+      <td style="padding: 8px;">🟢 Standard for Single Page Apps</td>
+      <td style="padding: 8px;">🟡 Common for full-stack apps</td>
+      <td style="padding: 8px;">🔴 Traditional server-rendered apps</td>
+    </tr>
+    <tr style="border-bottom: 1px solid #eee;">
+      <td style="padding: 8px;"><strong>Testing with Supertest</strong></td>
+      <td style="padding: 8px;">🟢 Easy (<code>.set('Authorization', 'Bearer ' + token)</code>)</td>
+      <td style="padding: 8px;">🟡 Medium (must pass cookie strings)</td>
+      <td style="padding: 8px;">🟡 Medium (session storage cleanup needed)</td>
+    </tr>
+    <tr style="border-bottom: 1px solid #eee;">
+      <td style="padding: 8px;"><strong>Learning Focus</strong></td>
+      <td style="padding: 8px;">Understanding JWT claims, signatures & middleware</td>
+      <td style="padding: 8px;">Cookie security flags (HttpOnly, SameSite)</td>
+      <td style="padding: 8px;">Stateful session stores</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr>
+
+<h2>4. Summary Recommendation</h2>
+<blockquote style="background: #fdf8eb; border-left: 4px solid #c9a24b; padding: 12px 16px; margin: 16px 0;">
+  <strong>Recommendation for Sembilu (Option A — Bearer JWT):</strong><br>
+  Issue #5 explicitly calls for: <code>POST /api/staff/login</code> returning a JWT token.<br>
+  Using <strong>Option A (Bearer Header)</strong> is the purest, most educational way to learn how modern REST APIs and SPAs communicate. The server signs a token with <code>{ staff_id, role, branch_id }</code>, and our Express auth middleware simply inspects <code>req.headers.authorization</code> to grant or deny access!
+</blockquote>
+
+<hr>
+
+<p style="font-size: 0.9rem; color: #555;">
+  <strong>Primary Resources:</strong><br>
+  • <a href="https://jwt.io/introduction" target="_blank">JWT.io Introduction to JSON Web Tokens</a><br>
+  • <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Authorization" target="_blank">MDN Docs: Authorization HTTP Header</a>
+</p>
+
+<p class="callout">
+  💬 <strong>Next Step:</strong> Review this lesson, ask any questions about how JWT tokens work or how middleware checks them, and then choose which option we should lock in!
+</p>
+
+</body>
+</html>

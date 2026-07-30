@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 8: HTTP — The Waiter Between Frontend and Backend</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<h1>HTTP: The Waiter Between Frontend and Backend</h1>
+<p class="subtitle">Lesson 8 · How your React app talks to your Express server.</p>
+
+<div class="story">
+  <strong>🙋 Imagine you're sitting at a Sembilu table.</strong> You want Ikan Bakar Pantura.
+  You don't walk into the kitchen and cook it yourself. You tell the waiter: "I want the
+  Ikan Bakar." The waiter goes to the kitchen, tells the chef, and comes back with your food.
+</div>
+
+<p>
+  That's what <strong>HTTP</strong> is. Your React app (the customer) makes a
+  <strong>request</strong> to the Express server (the waiter). The server processes it, talks
+  to the database (the chef) if needed, and sends back a <strong>response</strong>.
+</p>
+
+<table>
+  <tr><th>Real restaurant</th><th>Web app</th></tr>
+  <tr><td>You (customer)</td><td>React app (browser)</td></tr>
+  <tr><td>Waiter</td><td>HTTP request/response</td></tr>
+  <tr><td>Chef</td><td>Express server</td></tr>
+  <tr><td>Recipe book</td><td>Database (PostgreSQL)</td></tr>
+  <tr><td>You get your food</td><td>React gets JSON data back</td></tr>
+</table>
+
+<h2>A request has 3 parts</h2>
+
+<h3>1. Method (the verb)</h3>
+<p>What do you want to do?</p>
+
+<table>
+  <tr><th>Method</th><th>What it means</th><th>Restaurant analogy</th></tr>
+  <tr><td><code>GET</code></td><td>Give me data</td><td>"What's on the menu?"</td></tr>
+  <tr><td><code>POST</code></td><td>Create something new</td><td>"I'd like to place an order"</td></tr>
+  <tr><td><code>PUT</code></td><td>Replace something</td><td>"Change my entire order"</td></tr>
+  <tr><td><code>PATCH</code></td><td>Update part of something</td><td>"Make the sambal extra pedas"</td></tr>
+  <tr><td><code>DELETE</code></td><td>Remove something</td><td>"Cancel my order"</td></tr>
+</table>
+
+<h3>2. URL (the what)</h3>
+<p>Which thing are you talking about?</p>
+
+<pre><code>GET /api/branches        → "Give me all branches"
+GET /api/branches/1      → "Give me branch number 1 (Tegal)"
+POST /api/orders         → "Create a new order"
+GET /api/orders/42       → "Give me order number 42"
+PATCH /api/orders/42     → "Update order number 42"</code></pre>
+
+<p>
+  The URL is like saying "the Ikan Bakar Pantura" instead of just "food." It specifies
+  <em>which</em> thing.
+</p>
+
+<h3>3. Body (the details)</h3>
+<p>Extra information, usually in JSON format. Only for methods that change data (POST, PUT, PATCH).</p>
+
+<pre><code>POST /api/orders
+Body: {
+  "branch_id": 1,
+  "table_number": 5,
+  "items": [
+    { "dish_id": 1, "quantity": 2 },
+    { "dish_id": 3, "quantity": 1 }
+  ]
+}</code></pre>
+
+<p>This is like telling the waiter "table 5 wants two Ikan Bakar and one Gurame."</p>
+
+<h2>A response has 2 parts</h2>
+
+<h3>1. Status code (how did it go?)</h3>
+
+<table>
+  <tr><th>Code</th><th>Meaning</th><th>Restaurant analogy</th></tr>
+  <tr><td><code>200</code></td><td>OK — here's your data</td><td>"Here's your food, enjoy"</td></tr>
+  <tr><td><code>201</code></td><td>Created — new thing made</td><td>"Your order has been placed"</td></tr>
+  <tr><td><code>400</code></td><td>Bad request — you messed up</td><td>"We don't have that dish"</td></tr>
+  <tr><td><code>401</code></td><td>Unauthorized — who are you?</td><td>"I need to see your ID"</td></tr>
+  <tr><td><code>404</code></td><td>Not found — doesn't exist</td><td>"There's no table 20"</td></tr>
+  <tr><td><code>500</code></td><td>Server error — we broke something</td><td>"Kitchen is on fire"</td></tr>
+</table>
+
+<h3>2. Body (the actual data)</h3>
+
+<pre><code>GET /api/branches
+
+Response (200):
+[
+  { "id": 1, "city": "Tegal",   "address": "Jl. Jenderal Sudirman No. 17", "open": true },
+  { "id": 2, "city": "Slawi",   "address": "Jl. Raya Slawi No. 9",         "open": true },
+  { "id": 3, "city": "Semarang","address": "Jl. Pandanaran No. 24",        "open": false },
+  { "id": 4, "city": "Jakarta", "address": "Jl. Senopati No. 88",          "open": true }
+]</code></pre>
+
+<h2>Back to the "test seam"</h2>
+
+<p>
+  When I said we'll test at the <strong>API level</strong>, I meant we'll write tests that:
+</p>
+
+<ol>
+  <li>Send a fake HTTP request (like <code>GET /api/branches</code>) to our Express app</li>
+  <li>Check the status code (is it <code>200</code>?)</li>
+  <li>Check the response body (is the data correct?)</li>
+</ol>
+
+<p>
+  We don't need a real browser or a real server port. Supertest creates a fake waiter that
+  talks directly to the Express app in memory. Faster, more reliable, and tests the exact
+  same code that runs in production.
+</p>
+
+<div class="callout">
+  <strong>Try it yourself:</strong> Open your browser and go to
+  <code>http://localhost:3001/api/health</code> (after running <code>npm run dev:server</code>).
+  You just made a <strong>GET request</strong>. The <code>{ "status": "ok" }</code> you see is
+  the response body. That's all HTTP is — you ask, the server answers.
+</div>
+
+<hr>
+
+<p style="font-size:0.9rem; color:#888;">
+  <strong>Try it:</strong> Start the server with <code>npm run dev:server</code>, then open
+  <code>http://localhost:3001/api/health</code> in your browser. You just made your first
+  HTTP request.<br><br>
+  <strong>Confused?</strong> This is the foundation of everything — frontend talks to backend,
+  backend talks to database. Make sure it clicks before we move on.
+</p>
+
+</body>
+</html>

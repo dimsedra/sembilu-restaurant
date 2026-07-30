@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 14: T4 Recap — Orders</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<h1>T4 Recap: The Ordering Flow</h1>
+<p class="subtitle">Lesson 14 · The biggest ticket yet — a 4-step page from identity to confirmation.</p>
+
+<div class="story">
+  <strong>👩‍🍳 Wati now takes orders at the table.</strong> Before T4, customers would wave at
+  Wati and say "Ikan Bakar, please." After T4, they scan the QR code on their table, tap
+  through 4 steps on their phone, and the order appears in the system. Wati just brings
+  the food.
+</div>
+
+<p>
+  T4 is the biggest ticket so far because it's the first one that handles a
+  <strong>multi-step user flow</strong> — not just a single API call, but a complete
+  journey from "who are you?" to "your order is in!"
+</p>
+
+<h2>The 4 steps</h2>
+
+<table>
+  <tr><th>Step</th><th>What happens</th><th>Data collected</th></tr>
+  <tr>
+    <td><strong>1. Identity</strong></td>
+    <td>Customer enters name + phone</td>
+    <td>Who is ordering? Links to T3's customer table</td>
+  </tr>
+  <tr>
+    <td><strong>2. Menu</strong></td>
+    <td>Customer browses dishes, adds quantities</td>
+    <td>What do they want? Ikan Bakar × 2, Gurame × 1</td>
+  </tr>
+  <tr>
+    <td><strong>3. Sambal</strong></td>
+    <td>Per dish, pick a free sambal. Extra costs money.</td>
+    <td>Ikan Bakar → Sambal Terasi (free), Gurame → no sambal</td>
+  </tr>
+  <tr>
+    <td><strong>4. Review</strong></td>
+    <td>See the total, confirm, submit</td>
+    <td>Order sent to the kitchen!</td>
+  </tr>
+</table>
+
+<h2>The new tables</h2>
+
+<pre style="font-size:0.8rem;">
+orders                                order_items
+┌──────────────────────────┐          ┌──────────────────────────┐
+│ id                       │          │ id                       │
+│ branch_id                │◄─────────│ order_id (FK)            │
+│ customer_id (FK)         │          │ dish_id (FK)             │
+│ table_number             │          │ quantity                 │
+│ status: pending → paid   │          │ sambal_id (FK, nullable) │
+│ type: dine-in            │          │ sambal_extra (boolean)   │
+│ created_at               │          │ notes                    │
+└──────────────────────────┘          └──────────────────────────┘
+</pre>
+
+<p>
+  Why two tables instead of one? Same reason as T3 — one order can have
+  <strong>many items</strong>. An order with 3 items stores the order once and
+  the items separately. This is called a <strong>one-to-many</strong> relationship.
+</p>
+
+<h2>The POST /api/orders flow</h2>
+
+<pre style="font-size:0.8rem; line-height:1.7;">
+  browser                           server                              database
+    │                                 │                                    │
+    │  POST /api/orders               │                                    │
+    │  { name, phone, branch, table,  │                                    │
+    │    items: [{dish_id, qty,       │                                    │
+    │             sambal_id, ...}] }  │                                    │
+    │ ──────────────────────────────► │                                    │
+    │                                 │  1. Validate: name, phone, items   │
+    │                                 │  2. Validate: branch exists?       │
+    │                                 │  3. Validate: all dishes belong    │
+    │                                 │     to this branch?                │
+    │                                 │  4. Find or create customer (phone)│
+    │                                 │  5. INSERT into orders             │
+    │                                 │  6. INSERT into order_items (×n)  │
+    │                                 │  7. Return {order, items, customer}│
+    │                                 │                                    │
+    │  ◄── 201 Created ──────────────│                                    │
+</pre>
+
+<p>
+  Step 3 is the interesting one. When you order Ikan Bakar at SEMBILU Jakarta (branch 4),
+  the server checks: "Does Ikan Bakar exist at branch 4?" If not, it rejects the order.
+  This prevents someone from ordering a dish that isn't available at their branch.
+</p>
+
+<h2>The sambal pricing logic</h2>
+
+<p>This was the trickiest part of T4. Here's how it works:</p>
+
+<pre><code>// You ordered:
+//   Ikan Bakar × 2  →  free sambal allocation: 2
+//   Gurame × 1      →  free sambal allocation: 1
+//   Total free: 3
+
+if (used_sambals &lt;= free_sambals) {
+  // all free, no extra charge
+} else {
+  // extra sambals cost money
+  total += extra_sambal_count × sambal_price
+}</code></pre>
+
+<p>
+  Each sambal now has a price (added in a separate migration before T4).
+  Sambal Terasi: Rp 7.000. Sambal Tomat: Rp 5.000. Sambal Ikan Asin: Rp 10.000.
+  These prices were added to the existing sambals table — no new table needed.
+</p>
+
+<h2>The code review bug</h2>
+
+<p>During the code review, a bug was found:</p>
+
+<div class="callout">
+  <strong>Before fix:</strong> The system counted "how many items have a sambal?"
+  instead of "how many <em>portions</em> have a sambal?" If you ordered Ikan Bakar × 2
+  with sambal, it counted as 1 used sambal instead of 2.<br><br>
+  <strong>After fix:</strong> The count multiplies by quantity:
+  <code>usedSambalCount = cart.reduce((s, c) =&gt; s + (c.sambalId ? c.quantity : 0), 0)</code>
+</div>
+
+<p>
+  This is a classic bug: counting items vs counting quantities. Easy to miss, easy to fix.
+</p>
+
+<h2>What T4 touches</h2>
+
+<table>
+  <tr><th>File</th><th>What it does</th></tr>
+  <tr><td><code>migrations/create-orders</code></td><td>Creates orders + order_items tables</td></tr>
+  <tr><td><code>migrations/add-sambal-prices</code></td><td>Adds price column to sambals</td></tr>
+  <tr><td><code>routes/orders.ts</code></td><td>POST /api/orders + GET /api/orders/:id</td></tr>
+  <tr><td><code>routes/orders.test.ts</code></td><td>4 tests for order creation + lookup</td></tr>
+  <tr><td><code>pages/OrderPage.tsx</code></td><td>The big one — 4-step ordering page (~290 lines)</td></tr>
+  <tr><td><code>App.tsx</code></td><td>Route added: /order</td></tr>
+  <tr><td><code>vitest.config.ts</code></td><td>Fixed parallel test conflict</td></tr>
+</table>
+
+<hr>
+
+<p style="font-size:0.9rem; color:#888;">
+  <strong>Try it:</strong> <code>npm run dev</code> then visit
+  <code>http://localhost:5173/order?branch_id=1&table=5</code> — go through the 4 steps
+  and place an order. Then check: <code>GET /api/orders/1</code><br><br>
+  <strong>What's next?</strong> T5 (WebSocket) — the kitchen will get real-time notifications
+  when an order is placed. Or T6 (Staff Auth) — staff login so waiters and chefs can
+  access their dashboards.<br><br>
+  <strong>Confused?</strong> Ask. The 4-step flow is the most complex UI we've built so far.
+</p>
+
+</body>
+</html>

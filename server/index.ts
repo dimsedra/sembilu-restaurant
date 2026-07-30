@@ -6,6 +6,7 @@ import dishesRouter from "./routes/dishes"
 import sambalsRouter from "./routes/sambals"
 import reservationsRouter from "./routes/reservations"
 import ordersRouter from "./routes/orders"
+import staffRouter from "./routes/staff"
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -21,6 +22,8 @@ app.use("/api/dishes", dishesRouter)
 app.use("/api/sambals", sambalsRouter)
 app.use("/api/reservations", reservationsRouter)
 app.use("/api/orders", ordersRouter)
+app.use("/api/staff", staffRouter)
+
 
 if (process.env.NODE_ENV !== "test") {
   app.listen(PORT, () => {

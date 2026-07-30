@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 5: Project Layout — Where Does Everything Go?</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+  <style>
+    .tree { font-family: "Consolas", monospace; font-size: 0.85rem; line-height: 1.7; background: #f5f2eb; padding: 1rem; border-radius: 6px; margin: 1rem 0; }
+    .folder { color: #8a6d1b; }
+    .file { color: #333; }
+    .pro { color: #2e7d32; }
+    .con { color: #b84a30; }
+    table { width: 100%; border-collapse: collapse; margin: 1.2rem 0; font-size: 0.9rem; }
+    th { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 2px solid #c9a24b; }
+    td { padding: 0.4rem 0.6rem; border-bottom: 1px solid #ddd; }
+  </style>
+</head>
+<body>
+
+<h1>Project Layout: Where Does Everything Go?</h1>
+<p class="subtitle">Lesson 5 · Why there are different ways to organize a frontend + backend project, and which one Sembilu needs.</p>
+
+<div class="story">
+  <strong>🏗️ Imagine you're building a house.</strong> Do you put the kitchen, bedroom, and
+  workshop all in one big room? Do you build separate buildings for each? Or do you build a
+  house with clearly separated rooms, all under one roof?
+</div>
+
+<p>
+  That's what "project layout" is about — how you arrange the files for your frontend (React)
+  and backend (Express) when they live in the same Git repository. The right choice depends on
+  what kind of project you're building.
+</p>
+
+<h2>First, understand the two sides</h2>
+
+<p>Sembilu now has two "halves":</p>
+
+<table>
+  <tr><th></th><th>Frontend (src/)</th><th>Backend (new)</th></tr>
+  <tr><td>What it does</td><td>UI — what customers and staff see in the browser</td><td>API — handles requests, talks to the database, sends real-time updates</td></tr>
+  <tr><td>Runs on</td><td>The user's browser</td><td>A server (your computer, for now)</td></tr>
+  <tr><td>Dependencies</td><td>React, react-router, Tailwind</td><td>Express, knex, pg, socket.io</td></tr>
+  <tr><td>It needs to…</td><td>Look beautiful, feel fast</td><td>Store data, enforce rules, push updates</td></tr>
+</table>
+
+<p>
+  These two halves are <strong>different worlds</strong> — different concerns, different
+  dependencies, different runtime. But they're part of the <strong>same product</strong>,
+  so they should live in the same repository (same Git repo).
+</p>
+
+<p>
+  The question is: <em>how</em> do you arrange them inside that repo?
+</p>
+
+<hr>
+
+<h2>Option A: Two folders, one package.json</h2>
+
+<div class="tree">
+<span class="folder">sembilu-restaurant/</span>
+├── <span class="folder">src/</span>          ← React frontend (stays as-is)
+│   ├── components/
+│   ├── data.ts
+│   └── App.tsx
+├── <span class="folder">server/</span>       ← Express backend
+│   ├── routes/
+│   ├── migrations/
+│   ├── knexfile.js
+│   └── index.js
+├── <span class="file">package.json</span>   ← ONE file listing ALL dependencies
+├── <span class="file">vite.config.ts</span>
+└── <span class="file">index.html</span>
+</div>
+
+<p><strong>Why this exists:</strong> For small-to-medium projects where one person or a small team
+builds everything. It's the simplest setup — you run <code>npm install</code> once, you have
+one <code>package.json</code>, you understand the whole project from one file.</p>
+
+<table>
+  <tr><th>Pros</th><th>Cons</th></tr>
+  <tr><td class="pro">✅ One <code>npm install</code> — everything in one place</td><td class="con">❌ Frontend and backend deps mixed together in package.json</td></tr>
+  <tr><td class="pro">✅ Simple to understand — just two folders</td><td class="con">❌ As it grows, package.json becomes long and messy</td></tr>
+  <tr><td class="pro">✅ Easy to run both with one command (<code>concurrently</code>)</td><td class="con">❌ Harder to swap out a piece later (can't easily replace just the backend)</td></tr>
+  <tr><td class="pro">✅ No monorepo tooling to learn</td><td class="con">❌ No strict boundary — frontend code could import backend code by accident</td></tr>
+</table>
+
+<p><strong>Used by:</strong> Small teams, prototypes, personal projects, hackathons.</p>
+
+<hr>
+
+<h2>Option B: Monorepo with workspaces</h2>
+
+<div class="tree">
+<span class="folder">sembilu-restaurant/</span>
+├── <span class="folder">packages/</span>
+│   ├── <span class="folder">client/</span>      ← React frontend
+│   │   ├── <span class="file">package.json</span>  ← its own deps (React, etc.)
+│   │   ├── <span class="file">vite.config.ts</span>
+│   │   └── <span class="folder">src/</span>
+│   └── <span class="folder">server/</span>      ← Express backend
+│       ├── <span class="file">package.json</span>  ← its own deps (Express, knex, etc.)
+│       └── <span class="folder">src/</span>
+├── <span class="folder">shared/</span>        ← Optional: types used by both
+│   └── <span class="file">types.ts</span>
+├── <span class="file">package.json</span>   ← root — just workspace config
+</div>
+
+<p><strong>Why this exists:</strong> For larger projects where the frontend and backend are built
+by different teams, or where you want them to be truly independent but still in the same repo.
+Tools like <strong>npm workspaces</strong>, <strong>pnpm workspaces</strong>, and
+<strong>Turborepo</strong> manage this.</p>
+
+<table>
+  <tr><th>Pros</th><th>Cons</th></tr>
+  <tr><td class="pro">✅ Clean separation — each half has its own dependencies</td><td class="con">❌ Need to learn monorepo tooling (workspaces, hoisting, etc.)</td></tr>
+  <tr><td class="pro">✅ Can have a <code>shared/</code> package for types used by both</td><td class="con">❌ <code>npm install</code> is slower, more complex</td></tr>
+  <tr><td class="pro">✅ Scales to many packages (add a mobile app? just another package)</td><td class="con">❌ Overkill for a two-person project</td></tr>
+  <tr><td class="pro">✅ Each package can have its own build/dev/test commands</td><td class="con">❌ "Where's the bug?" — harder to debug across packages</td></tr>
+</table>
+
+<p><strong>Used by:</strong> Large teams (Spotify, Google), open-source projects, companies with
+multiple products sharing code.</p>
+
+<hr>
+
+<h2>Option C: Flat everything in src/</h2>
+
+<div class="tree">
+<span class="folder">sembilu-restaurant/</span>
+├── <span class="folder">src/</span>
+│   ├── <span class="folder">client/</span>     ← React: components, pages, styles
+│   ├── <span class="folder">server/</span>     ← Express: routes, middleware, migrations
+│   └── <span class="folder">shared/</span>    ← Types both sides use
+└── <span class="file">package.json</span>
+</div>
+
+<p><strong>Why this exists:</strong> When you want <em>maximum</em> simplicity and don't mind the
+two sides living in the same folder. Some frameworks (like Next.js) actually do this — they
+put API routes inside the same folder as pages.</p>
+
+<table>
+  <tr><th>Pros</th><th>Cons</th></tr>
+  <tr><td class="pro">✅ Everything is right there — no folder nesting</td><td class="con">❌ Gets messy fast — hard to tell what belongs where</td></tr>
+  <tr><td class="pro">✅ Shared types are trivially close</td><td class="con">❌ No clear boundary — easy to accidentally mix concerns</td></tr>
+  <tr><td class="pro">✅ Single build/dev setup</td><td class="con">❌ Doesn't scale — at some point you'll want to separate them</td></tr>
+</table>
+
+<p><strong>Used by:</strong> Very small projects, quick prototypes, tutorials.</p>
+
+<hr>
+
+<h2>Which one for Sembilu?</h2>
+
+<p>Let's think about what Sembilu actually needs:</p>
+
+<ol>
+  <li><strong>One developer</strong> (you) building both frontend and backend — no team coordination needed</li>
+  <li><strong>You're learning</strong> — you don't want to also learn monorepo tooling on top of everything else</li>
+  <li><strong>The frontend is already built</strong> — moving everything to a monorepo means restructuring existing files</li>
+  <li><strong>You need to run both together</strong> — one command should start the Vite dev server + the Express server</li>
+</ol>
+
+<p>Now check each option against these needs:</p>
+
+<table>
+  <tr><th></th><th>Option A (two folders)</th><th>Option B (monorepo)</th><th>Option C (flat)</th></tr>
+  <tr><td>Learning curve</td><td>None</td><td>Medium</td><td>None</td></tr>
+  <tr><td>Setup time</td><td>Minutes</td><td>Hours</td><td>Minutes</td></tr>
+  <tr><td>Keeps existing src/ intact?</td><td>✅ Yes</td><td>❌ Need to move it</td><td>✅ Yes</td></tr>
+  <tr><td>Scales well?</td><td>Good enough</td><td>Best</td><td>Poor</td></tr>
+  <tr><td>Shared types</td><td>Manual import</td><td>Built-in</td><td>Trivial</td></tr>
+  <tr><td>Industry common?</td><td>Common for small projects</td><td>Common for big teams</td><td>Rare for real projects</td></tr>
+</table>
+
+<div class="callout">
+  <strong>Why Option A wins for Sembilu:</strong> Monorepo tooling adds a layer you'd need to
+  learn and debug — on top of Express, knex, PostgreSQL, WebSocket, and everything else.
+  Option A adds zero complexity. You just create a <code>server/</code> folder and start writing
+  code. If the project grows huge (unlikely for a restaurant system), you can migrate to a
+  monorepo later. But by then you'll <em>understand why</em> you need it, instead of learning it
+  upfront.
+</div>
+
+<hr>
+
+<p style="font-size:0.9rem; color:#888;">
+  <strong>Up next:</strong> Actually setting up the Express server and connecting to PostgreSQL.<br>
+  <strong>Confused</strong> about any of these options? Ask. The analogy of the house with rooms
+  vs separate buildings — does that help?
+</p>
+
+</body>
+</html>
