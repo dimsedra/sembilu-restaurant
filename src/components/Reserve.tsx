@@ -5,7 +5,7 @@ import { Kawung, Reveal, SectionHeading } from "@/components/primitives"
 
 const cities = locations.map((l) => l.city)
 const branchIdMap: Record<string, number> = { Tegal: 1, Slawi: 2, Semarang: 3, Jakarta: 4 }
-const slots = ["11.30", "12.30", "18.00", "19.00", "19.30", "20.00"]
+const slots = ["11:30", "12:30", "18:00", "19:00", "19:30", "20:00"]
 const today = new Date().toISOString().slice(0, 10)
 
 const orderItems = [
