@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Lesson 22: T7 KDS Code Review Findings & Solutions</title>
+  <title>Lesson 22: T7 KDS — Initial Implementation, Code Review & Final Solution</title>
   <link rel="stylesheet" href="../assets/lesson.css">
   <style>
     .story-card { background: #fff; border-left: 4px solid #c9a24b; padding: 1.2rem; margin: 1.5rem 0; border-radius: 0 8px 8px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
@@ -14,90 +14,98 @@
     .line-explain ul { margin: 0; padding-left: 1.2rem; }
     .line-explain li { margin-bottom: 0.3rem; }
     .badge { display: inline-block; background: #c9a24b; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; margin-right: 6px; }
+    .badge.red { background: #b84a30; }
+    .badge.green { background: #2e7d32; }
   </style>
 </head>
 <body>
 
-<h1>T7 KDS Code Review: Findings, Domain Impact & Solutions</h1>
+<h1>T7 KDS: Initial Implementation, Code Review & Final Refactor</h1>
 <div class="subtitle">Lesson 0022 · Sembilu Operating System · Informed Knowledge & Context</div>
 
 <p>
-  In this lesson, we review the code review findings from <strong>T7 (Kitchen Display System & Staff Order Management)</strong>, connecting each technical issue directly to real-world kitchen operations and seeing how our solutions fixed them!
+  In this lesson, we trace the full lifecycle of <strong>T7 (Kitchen Display System & Staff Order Management)</strong> — starting from our initial implementation, through our dual-axis code review findings, to our final refactored solution!
 </p>
 
 <hr>
 
-<h2>🔍 1. Code Review Findings & Operational Solutions</h2>
+<h2>🚀 1. Initial Implementation Report (Before Code Review)</h2>
+
+<p>
+  Our initial build established the core API routes needed for kitchen and floor staff in <code>server/routes/staff-orders.ts</code>:
+</p>
+
+<ul>
+  <li><code>GET /api/staff/orders</code>: Fetched orders matching the staff member's <code>branch_id</code>, joining dish and sambal details for each order item.</li>
+  <li><code>PATCH /api/staff/orders/:id/items/:itemId</code>: Updated item status following a forward state machine (<code>pending</code> ➔ <code>cooking</code> ➔ <code>done</code>) and automatically updated parent order status to <code>cooking</code> when the first dish started.</li>
+  <li><code>PATCH /api/staff/orders/:id</code>: Updated table order status.</li>
+</ul>
+
+<hr>
+
+<h2>🔍 2. Dual-Axis Code Review Findings</h2>
 
 <div class="story-card">
-  <h3>Finding 1: Missing Today's Date Filter on KDS Screen</h3>
-  <p><strong>What was happening:</strong> <code>GET /api/staff/orders</code> fetched all orders in history for a branch.</p>
-  <p><strong>Real-World Impact:</strong> Chef Budi's kitchen screen would be cluttered with old orders from last month alongside today's active table orders!</p>
-  <p><strong>The Solution:</strong> Added Knex date filtering: <code>.whereRaw("DATE(orders.created_at) = CURRENT_DATE")</code>.</p>
+  <h3><span class="badge red">Spec Finding</span> Missing Today's Date Filter</h3>
+  <p><strong>Observed Code:</strong> <code>GET /api/staff/orders</code> ran <code>db("orders").where({ branch_id })</code> without filtering by creation date.</p>
+  <p><strong>Kitchen Impact:</strong> Chef Budi's display screen would be cluttered with old historical orders from last month alongside active orders from today!</p>
 </div>
 
 <div class="story-card">
-  <h3>Finding 2: Silent Fallback on Cross-Branch Query Attempts</h3>
-  <p><strong>What was happening:</strong> If a waiter at Tegal passed <code>?branch_id=2</code> (Slawi), the server silently returned Tegal orders.</p>
-  <p><strong>Real-World Impact:</strong> The waiter's tablet would display Tegal orders thinking it was looking at Slawi, causing confusion.</p>
-  <p><strong>The Solution:</strong> Added an explicit check returning HTTP <code>403 Forbidden</code> if a non-manager staff member queries another branch.</p>
+  <h3><span class="badge red">Security Finding</span> Silent Fallback on Cross-Branch Queries</h3>
+  <p><strong>Observed Code:</strong> Non-manager staff passing <code>?branch_id=2</code> silently fell back to their token branch (<code>branch_id: 1</code>).</p>
+  <p><strong>Staff Impact:</strong> Waiter Wati's tablet would display Tegal orders thinking it succeeded in querying Slawi. Security boundaries must fail fast with HTTP 403 Forbidden!</p>
 </div>
 
 <div class="story-card">
-  <h3>Finding 3: Item Status & Order Status Boundary Confusion</h3>
-  <p><strong>What was happening:</strong> Checked <code>item.status === "served"</code> when testing if all dishes were done.</p>
-  <p><strong>Real-World Impact:</strong> Mixed up dish preparation states (kitchen) with table delivery states (waiter floor).</p>
-  <p><strong>The Solution:</strong> Restricted item status checking strictly to <code>item.status === "done"</code>.</p>
+  <h3><span class="badge red">Domain Finding</span> Item vs. Order Status Boundary Confusion</h3>
+  <p><strong>Observed Code:</strong> Checked <code>item.status === "done" || item.status === "served"</code>.</p>
+  <p><strong>Domain Impact:</strong> <code>served</code> is a table-level delivery state (waiter floor), whereas kitchen items are strictly <code>pending</code> ➔ <code>cooking</code> ➔ <code>done</code>.</p>
 </div>
 
 <div class="story-card">
-  <h3>Finding 4: Overly Permissive Table Status Endpoint</h3>
-  <p><strong>What was happening:</strong> Allowed staff to set order status to <code>pending</code> or <code>cooking</code> via <code>PATCH /api/staff/orders/:id</code>.</p>
-  <p><strong>Real-World Impact:</strong> A staff member could accidentally revert a completed table back to pending.</p>
-  <p><strong>The Solution:</strong> Restricted order status updates strictly to <code>["served", "paid"]</code>.</p>
+  <h3><span class="badge red">Spec Finding</span> Overly Permissive Order Status Modifications</h3>
+  <p><strong>Observed Code:</strong> <code>PATCH /api/staff/orders/:id</code> accepted all 6 order statuses, including <code>pending</code> and <code>cooking</code>.</p>
+  <p><strong>Floor Impact:</strong> Staff could accidentally revert a completed table order back to pending, bypassing kitchen workflows.</p>
 </div>
 
 <hr>
 
-<h2>📚 2. Beginner's Code Glossary</h2>
+<h2>🛠️ 3. Final Refactored Solution & Code Walkthrough</h2>
+
 <dl class="glossary-grid">
   <dt>whereRaw()</dt>
-  <dd>A Knex method allowing raw SQL expressions (like PostgreSQL's <code>CURRENT_DATE</code>) in queries.</dd>
-
-  <dt>CURRENT_DATE</dt>
-  <dd>PostgreSQL keyword representing today's calendar date.</dd>
+  <dd>Knex method for running raw SQL date functions (e.g. <code>DATE(orders.created_at) = CURRENT_DATE</code>).</dd>
 
   <dt>checkBranchAccess()</dt>
-  <dd>Our helper function verifying whether a staff member has permission to view or edit data at a specific branch.</dd>
+  <dd>Security helper validating whether staff role/branch matches the target branch before database queries execute.</dd>
 
   <dt>403 Forbidden</dt>
-  <dd>HTTP status code returned when a user is authenticated but lacks permission for the target resource.</dd>
+  <dd>HTTP status code returned when authenticated staff attempt to access unauthorized branch data.</dd>
 </dl>
 
-<hr>
-
-<h2>🧩 3. The Refactored Code Walkthrough</h2>
-
-<h3>1. Today's Date Filter & Branch Security Check</h3>
-<pre><code>if (req.query.branch_id && staff.role !== "manager" && Number(req.query.branch_id) !== staff.branch_id) {
+<h3>1. Today's Date Filter & Explicit 403 Guard</h3>
+<pre><code>// 1. Explicit 403 check for unauthorized cross-branch queries
+if (req.query.branch_id && staff.role !== "manager" && Number(req.query.branch_id) !== staff.branch_id) {
   res.status(403).json({ error: "Forbidden: Cannot access orders belonging to another branch." })
   return
 }
 
+// 2. Fetch today's orders only using CURRENT_DATE
 const orders = await db("orders")
   .where({ branch_id: branchId })
   .whereRaw("DATE(orders.created_at) = CURRENT_DATE")
   .orderBy("created_at", "desc")</code></pre>
 
 <div class="line-explain">
-  <strong>Explanation:</strong>
+  <strong>How this connects context to code:</strong>
   <ul>
-    <li><code>staff.role !== "manager" && Number(req.query.branch_id) !== staff.branch_id</code>: If a waiter tries to pass a different branch ID, fail immediately with HTTP 403!</li>
-    <li><code>whereRaw("DATE(orders.created_at) = CURRENT_DATE")</code>: Filters SQL query results to strictly today's orders.</li>
+    <li><code>whereRaw("DATE(orders.created_at) = CURRENT_DATE")</code> keeps the KDS screen 100% focused on active orders placed today.</li>
+    <li>Fails fast with HTTP 403 if non-manager waiters attempt cross-branch queries.</li>
   </ul>
 </div>
 
-<h3>2. Restricted Order Status Updates</h3>
+<h3>2. Restricted Order Status Updates (Served & Paid Only)</h3>
 <pre><code>const ALLOWED_STAFF_ORDER_UPDATES = ["served", "paid"] as const
 
 if (!newStatus || !ALLOWED_STAFF_ORDER_UPDATES.includes(newStatus as AllowedOrderUpdate)) {
@@ -106,16 +114,16 @@ if (!newStatus || !ALLOWED_STAFF_ORDER_UPDATES.includes(newStatus as AllowedOrde
 }</code></pre>
 
 <div class="line-explain">
-  <strong>Explanation:</strong>
+  <strong>How this connects context to code:</strong>
   <ul>
-    <li><code>ALLOWED_STAFF_ORDER_UPDATES</code>: Locks the endpoint so waiters can only mark orders as <code>served</code> or <code>paid</code>.</li>
+    <li>Locks <code>PATCH /api/staff/orders/:id</code> so floor waiters can only mark tables as <code>served</code> or <code>paid</code>.</li>
   </ul>
 </div>
 
 <hr>
 
 <p class="subtitle">
-  <strong>Lesson Link:</strong> <br>
+  <strong>Interactive Lesson Link:</strong> <br>
   <code>file:///d:/Project Hub/sembilu-restaurant/teaching/lessons/0022-t7-kds-code-review-and-solutions.html</code>
 </p>
 
