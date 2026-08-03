@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Lesson 23: T8 Staff Reservations View & Guest Check-In</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+  <style>
+    .story-card { background: #fff; border-left: 4px solid #c9a24b; padding: 1.2rem; margin: 1.5rem 0; border-radius: 0 8px 8px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    .story-card h3 { margin-top: 0; color: #8a2e1f; }
+    .glossary-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 0.5rem 1rem; background: #fff; padding: 1rem; border-radius: 6px; border: 1px solid #ddd; margin: 1rem 0; font-size: 0.9rem; }
+    .glossary-grid dt { font-weight: bold; color: #b84a30; font-family: monospace; }
+    .glossary-grid dd { margin: 0; color: #333; }
+    .line-explain { background: #fdfaf3; border-left: 3px solid #c9a24b; padding: 0.6rem 1rem; margin: 0.5rem 0 1.2rem; font-size: 0.9rem; }
+    .line-explain ul { margin: 0; padding-left: 1.2rem; }
+    .line-explain li { margin-bottom: 0.3rem; }
+    .badge { display: inline-block; background: #c9a24b; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; margin-right: 6px; }
+  </style>
+</head>
+<body>
+
+<h1>T8: Staff Reservations View & Host Stand Check-In</h1>
+<div class="subtitle">Lesson 0023 · Sembilu Operating System · Informed Context & Knowledge</div>
+
+<p>
+  In this lesson, we explore the <strong>Informed Context</strong> and <strong>Informed Knowledge</strong> behind <strong>T8 (Staff Reservations View)</strong>, establishing how floor hosts manage bookings, greet returning VIP guests, process guest check-ins, and record phone reservations.
+</p>
+
+<hr>
+
+<h2>🏛️ 1. Informed Context: Host Stand Operations</h2>
+
+<div class="story-card">
+  <h3>Host Stand Workflow at Sembilu Tegal</h3>
+  <p>
+    When a guest arrives at the host stand for dinner at 19:00:
+  </p>
+  <ol>
+    <li>Host Waiter Wati checks today's reservation screen on <code>GET /api/staff/reservations</code>.</li>
+    <li>She sees <strong>Pak Budi</strong> (Party of 4, 19:00). Next to his name, the system shows <code>visit_count: 5</code> (VIP Guest!).</li>
+    <li>Host Wati greets Pak Budi warmly and taps <strong>"Check In"</strong> ➔ Status changes from <code>confirmed</code> to <code>completed</code>.</li>
+    <li>If a customer calls on the phone to book for tomorrow, Wati uses <code>POST /api/staff/reservations</code> to record the phone booking directly.</li>
+  </ol>
+</div>
+
+<div class="story-card">
+  <h3>Architectural Invariants We Established (ADR-0006)</h3>
+  <ul>
+    <li><strong>Today's Date Default:</strong> <code>GET /api/staff/reservations</code> defaults to <code>date = CURRENT_DATE</code>, ordered by <code>time ASC</code>. Staff can pass <code>?date=YYYY-MM-DD</code> to check upcoming dates.</li>
+    <li><strong>Customer SQL Join:</strong> Reservations query joins the <code>customers</code> table so staff see guest <code>name</code>, <code>phone</code>, and <code>visit_count</code>.</li>
+    <li><strong>Status Lifecycle:</strong> <code>PATCH /api/staff/reservations/:id/status</code> updates status between <code>confirmed</code>, <code>completed</code> (check-in), and <code>cancelled</code>.</li>
+    <li><strong>Phone Booking Upsert:</strong> <code>POST /api/staff/reservations</code> automatically checks if the customer's phone number exists, incrementing their visit count if returning, or creating a new customer record.</li>
+  </ul>
+</div>
+
+<hr>
+
+<h2>📚 2. Beginner's Code Glossary</h2>
+<dl class="glossary-grid">
+  <dt>JOIN</dt>
+  <dd>A SQL operation combining records from two tables (e.g. <code>reservations</code> and <code>customers</code>) based on a matching foreign key.</dd>
+
+  <dt>CURRENT_DATE</dt>
+  <dd>PostgreSQL expression representing today's date, filtering out old or future bookings unless requested.</dd>
+
+  <dt>upsert</dt>
+  <dd>Database pattern that updates an existing record if found (incrementing visit_count) or inserts a new record if not found.</dd>
+
+  <dt>check-in</dt>
+  <dd>Domain action marking a confirmed reservation as <code>completed</code> when guests arrive at the restaurant.</dd>
+</dl>
+
+<hr>
+
+<h2>🧩 3. Informed Knowledge: Endpoints Architecture</h2>
+
+<h3>1. Fetching Today's Host View (<code>GET /api/staff/reservations</code>)</h3>
+<pre><code>const targetDate = req.query.date ? String(req.query.date) : db.fn.now()
+
+const reservations = await db("reservations")
+  .join("customers", "reservations.customer_id", "customers.id")
+  .where({ "reservations.branch_id": branchId })
+  .whereRaw("DATE(reservations.date) = DATE(?)", [targetDate])
+  .select("reservations.*", "customers.name", "customers.phone", "customers.visit_count")
+  .orderBy("reservations.time", "asc")</code></pre>
+<div class="line-explain">
+  <ul>
+    <li><code>join("customers", ...)</code>: Merges customer name, phone, and visit count into each reservation object.</li>
+    <li><code>orderBy("reservations.time", "asc")</code>: Sorts bookings chronologically from morning to evening for host stand timeline viewing.</li>
+  </ul>
+</div>
+
+<h3>2. Guest Check-In (<code>PATCH /api/staff/reservations/:id/status</code>)</h3>
+<pre><code>const ALLOWED_STATUSES = ["confirmed", "completed", "cancelled"]
+
+if (!ALLOWED_STATUSES.includes(status)) {
+  return res.status(400).json({ error: "Invalid status value." })
+}
+
+await db("reservations").where({ id: reservationId }).update({ status })</code></pre>
+<div class="line-explain">
+  <ul>
+    <li><code>status === "completed"</code>: Represents successful guest check-in when guests arrive and sit at their table.</li>
+  </ul>
+</div>
+
+<hr>
+
+<p class="subtitle">
+  <strong>Next Step:</strong> Run <code>/implement</code> to build T8 step-by-step with automated tests!
+</p>
+
+</body>
+</html>
