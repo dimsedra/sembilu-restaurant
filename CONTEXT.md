@@ -69,6 +69,11 @@ Staff members (waiters, chefs, managers) authenticate via `POST /api/staff/login
 
 A real-time screen in the kitchen showing incoming orders grouped by table. Chefs and waiters manage order item lifecycles (`PATCH /api/staff/orders/:id/items/:itemId`). Item statuses enforce a strict state machine (`pending` ➔ `cooking` ➔ `done`). Requests are authenticated via JWT and automatically branch-scoped (`req.staff.branch_id`), with managers allowed cross-branch queries (`?branch_id=X`). Updating item statuses automatically propagates to the parent order status (first item cooking ➔ order `cooking`; all items done ➔ order `done`).
 
+## Staff Reservations & Guest Check-In
+
+Floor staff manage host stand bookings via `GET /api/staff/reservations`, `PATCH /api/staff/reservations/:id/status`, and `POST /api/staff/reservations`. Queries default to today's date (`date = CURRENT_DATE`), join `customers` data (`name`, `phone`, `visit_count`) for VIP recognition, and allow optional date overrides (`?date=YYYY-MM-DD`). Hosts check in arriving guests (`confirmed` ➔ `completed`) or mark cancellations (`cancelled`). Phone reservations can be created directly by staff, automatically upserting customer records and incrementing visit counts.
+
+
 
 ## Design system reference
 
