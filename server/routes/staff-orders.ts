@@ -1,6 +1,7 @@
 import { Router, Response } from "express"
 import { db } from "../db"
 import { requireStaffAuth, AuthenticatedRequest } from "./staff"
+import { broadcastOrderUpdate } from "../websocket"
 
 const router = Router()
 
@@ -145,6 +146,13 @@ router.patch("/:id/items/:itemId", requireStaffAuth, async (req: AuthenticatedRe
       }
     }
 
+    broadcastOrderUpdate({
+      event: "order_updated",
+      orderId,
+      status: newOrderStatus,
+      items: [updatedItem],
+    })
+
     res.json({
       item: updatedItem,
       orderStatus: newOrderStatus,
@@ -188,6 +196,12 @@ router.patch("/:id", requireStaffAuth, async (req: AuthenticatedRequest, res: Re
     })
 
     const updatedOrder = await db("orders").where({ id: orderId }).first()
+
+    broadcastOrderUpdate({
+      event: "order_updated",
+      orderId,
+      status: newStatus,
+    })
 
     res.json({ order: updatedOrder })
   } catch (error) {
