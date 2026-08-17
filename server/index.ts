@@ -1,7 +1,9 @@
 import "dotenv/config"
+import http from "http"
 import express from "express"
 import cors from "cors"
 import { db } from "./db"
+import { initWebSocketServer, closeWebSocketServer } from "./websocket"
 import dishesRouter from "./routes/dishes"
 import sambalsRouter from "./routes/sambals"
 import reservationsRouter from "./routes/reservations"
@@ -11,7 +13,10 @@ import staffOrdersRouter from "./routes/staff-orders"
 import staffReservationsRouter from "./routes/staff-reservations"
 
 const app = express()
+const server = http.createServer(app)
 const PORT = process.env.PORT || 3001
+
+initWebSocketServer(server)
 
 app.use(cors())
 app.use(express.json())
@@ -29,11 +34,16 @@ app.use("/api/staff/reservations", staffReservationsRouter)
 app.use("/api/staff", staffRouter)
 
 if (process.env.NODE_ENV !== "test") {
-  app.listen(PORT, () => {
+  server.listen(PORT, () => {
     console.log(`🍽️ Sembilu API running on http://localhost:${PORT}`)
   })
 }
 
-process.on("SIGTERM", () => db.destroy())
+process.on("SIGTERM", async () => {
+  await closeWebSocketServer()
+  await db.destroy()
+})
 
+export { app, server }
 export default app
+
