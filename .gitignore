@@ -3,3 +3,6 @@ dist/
 .env
 *.local
 .own-it/
+.journal/
+.superpowers/
+

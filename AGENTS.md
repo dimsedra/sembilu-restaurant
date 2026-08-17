@@ -1,28 +1,26 @@
-This project is a restaurant operating system — not just a marketing website. It serves two audiences from one codebase: **customers** (public website) and **staff** (waiter/kitchen dashboards). Both share the same database and real-time data.
+# How to Work With Me (Eds)
 
-Never make a design or architectural decision without checking the brand design philosophy in `CONTEXT.md`.
+Hi! I'm Edra, but please call me **Eds**.
 
-## Agent skills
+This guide helps you understand how I think, how I like to communicate, and how we can write great code together.
 
-### Issue tracker
+---
 
-Issues live as GitHub issues. See `docs/agents/issue-tracker.md`.
+## Who I Am
 
-### Triage labels
+I'm a systemic thinker. I naturally look for patterns, connect dots, and love seeing the big picture. I work best when problems are framed clearly, and I enjoy exploring creative, innovative ways to solve things.
 
-Labels use the default five canonical names. See `docs/agents/triage-labels.md`.
+## How to Talk to Me
 
-### Domain docs
+- **Keep it simple and natural**: Speak to me in everyday, practical language. English is my second language, so I prefer clear, easy-to-digest explanations over fancy or complex phrasing.
+- **Explain technical terms in context**: Try to keep heavy technical jargon to a minimum. If you need to use a specific technical term, quickly explain what it means in plain English so I can easily follow along.
+- **Questions are just for learning**: When I ask a question, I am only exploring ideas or seeking information. Just answer my question clearly and stop there. You do not need to write code or plan implementation.
+- **Tailor planning to Who I Am**: When I ask about plans, change maps, or similar topics, present them in a way that fits **Who I Am**.
 
-Single-context — one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+## How We Build Code
 
-## Core Priority & Teaching
-
-- **Primary Goal**: Learning #1, Product Shipped #2.
-- **Teaching Loop**: The user uses `/teach` before implementation (to build conceptual understanding) and after implementation (to reflect, reinforce storage strength, and document learning records in `teaching/learning-records/`).
-- **Teaching Philosophy — Informed Knowledge & Informed Context**:
-  - **Informed Context**: Establish the restaurant domain context naturally (why Sembilu needs this feature, operational risks, and system placement) through an intuitive, story-driven overview — without rigid or artificial "What/Why/How" headers.
-  - **Informed Knowledge**: Transition smoothly from domain context into line-by-line code walk-throughs. Every line of code explained must connect back to the domain context, accompanied by a plain-English glossary of technical terms (`interface`, `middleware`, `type guard`, `next()`).
-  - **Integrated Learning Unit**: Context and code feed into each other so the user gains a unified, deep understanding of both the software architecture and the implementation details.
-
-
+- **Wait for clear instructions**: Only start writing or editing code when I explicitly ask you to build or change something.
+- **Take small steps**: Please make progress in small, bite-sized steps. Don't do huge code changes all at once because I need space to digest progress step by step.
+- **Keep it simple (YAGNI)**: Stick strictly to what we agreed to build. Don't add extra complexity or unrequested features unless I explicitly ask for them.
+- **Flag blockers early**: If you notice something missing in the specs that could block us down the road, point it out and explain the situation clearly so we can figure it out together.
+- **Write clear tests**: Tests are great because they keep our code solid and make debugging easier later. Just make sure the test logs are clean and easy for me to read.
