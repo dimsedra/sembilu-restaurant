@@ -1,6 +1,7 @@
 import { Router, Response } from "express"
 import { db } from "../db"
 import { requireStaffAuth, AuthenticatedRequest } from "./staff"
+import { calculateDefaultEndTime, assignTableForReservation } from "./reservations"
 
 const router = Router()
 
@@ -118,7 +119,7 @@ router.patch("/:id/status", requireStaffAuth, async (req: AuthenticatedRequest, 
  */
 router.post("/", requireStaffAuth, async (req: AuthenticatedRequest, res: Response) => {
   const staff = req.staff!
-  const { name, phone, date, time, party_size, notes, branch_id: inputBranchId } = req.body
+  const { name, phone, date, time, party_size, notes, branch_id: inputBranchId, table_number, time_end } = req.body
 
   if (!name || !phone || !date || !time || !party_size) {
     res.status(400).json({ error: "Missing required fields: name, phone, date, time, party_size." })
@@ -132,6 +133,21 @@ router.post("/", requireStaffAuth, async (req: AuthenticatedRequest, res: Respon
   }
 
   try {
+    const resolvedTimeEnd = time_end || calculateDefaultEndTime(time)
+    const { tableNumber, error: tableError } = await assignTableForReservation(
+      branchId,
+      date,
+      time,
+      resolvedTimeEnd,
+      party_size,
+      table_number
+    )
+
+    if (tableError) {
+      res.status(400).json({ error: "Table not found in this branch." })
+      return
+    }
+
     let customer = await db("customers").where({ phone }).first()
 
     if (customer) {
@@ -150,6 +166,8 @@ router.post("/", requireStaffAuth, async (req: AuthenticatedRequest, res: Respon
         branch_id: branchId,
         date,
         time,
+        time_end: resolvedTimeEnd,
+        table_number: tableNumber,
         party_size,
         status: "confirmed",
         notes: notes || null,

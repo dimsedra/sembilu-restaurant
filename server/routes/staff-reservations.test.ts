@@ -179,5 +179,61 @@ describe("T8: Staff Reservations API (/api/staff/reservations)", () => {
 
       expect(res.status).toBe(400)
     })
+
+    it("calculates default time_end (+2 hours) and auto-assigns an available reserved table", async () => {
+      const uniquePhone = `0819${Math.floor(100000 + Math.random() * 900000)}`
+      const res = await request(app)
+        .post("/api/staff/reservations")
+        .set("Authorization", `Bearer ${waiterToken}`)
+        .send({
+          name: "Bapak Hendra",
+          phone: uniquePhone,
+          date: "2026-08-30",
+          time: "18:00",
+          party_size: 4,
+        })
+
+      expect(res.status).toBe(201)
+      expect(res.body.reservation.table_number).toBe(10)
+      expect(res.body.reservation.time_end).toMatch(/^20:00/)
+    })
+
+    it("accepts explicit table_number and time_end", async () => {
+      const uniquePhone = `0819${Math.floor(100000 + Math.random() * 900000)}`
+      const res = await request(app)
+        .post("/api/staff/reservations")
+        .set("Authorization", `Bearer ${waiterToken}`)
+        .send({
+          name: "Bapak Surya",
+          phone: uniquePhone,
+          date: "2026-08-30",
+          time: "18:00",
+          time_end: "20:30:00",
+          party_size: 6,
+          table_number: 12,
+        })
+
+      expect(res.status).toBe(201)
+      expect(res.body.reservation.table_number).toBe(12)
+      expect(res.body.reservation.time_end).toMatch(/^20:30/)
+    })
+
+    it("returns 400 when explicitly requested table does not exist in branch", async () => {
+      const uniquePhone = `0819${Math.floor(100000 + Math.random() * 900000)}`
+      const res = await request(app)
+        .post("/api/staff/reservations")
+        .set("Authorization", `Bearer ${waiterToken}`)
+        .send({
+          name: "Bapak Joko",
+          phone: uniquePhone,
+          date: "2026-08-30",
+          time: "18:00",
+          party_size: 4,
+          table_number: 99,
+        })
+
+      expect(res.status).toBe(400)
+      expect(res.body).toHaveProperty("error")
+    })
   })
 })

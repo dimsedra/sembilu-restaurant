@@ -67,4 +67,74 @@ describe("POST /api/reservations", () => {
     })
     expect(res.status).toBe(400)
   })
+
+  it("calculates default time_end (+2 hours) and auto-assigns an available reserved table", async () => {
+    const res = await request(app).post("/api/reservations").send({
+      name: "Andi",
+      phone: "0812-4444-4444",
+      branch_id: 1,
+      date: "2026-08-25",
+      time: "19:00",
+      party_size: 4,
+    })
+    expect(res.status).toBe(201)
+    expect(res.body.reservation.table_number).toBe(10)
+    expect(res.body.reservation.time_end).toMatch(/^21:00/)
+  })
+
+  it("accepts explicit valid table_number and time_end", async () => {
+    const res = await request(app).post("/api/reservations").send({
+      name: "Dewi",
+      phone: "0812-5555-5555",
+      branch_id: 1,
+      date: "2026-08-25",
+      time: "19:00",
+      time_end: "21:30:00",
+      party_size: 4,
+      table_number: 11,
+    })
+    expect(res.status).toBe(201)
+    expect(res.body.reservation.table_number).toBe(11)
+    expect(res.body.reservation.time_end).toMatch(/^21:30/)
+  })
+
+  it("assigns next available table if earlier table is booked at overlapping time", async () => {
+    // First booking gets table 10 (cap 6)
+    const res1 = await request(app).post("/api/reservations").send({
+      name: "Guest 1",
+      phone: "0812-6666-0001",
+      branch_id: 1,
+      date: "2026-08-26",
+      time: "19:00",
+      party_size: 4,
+    })
+    expect(res1.status).toBe(201)
+    expect(res1.body.reservation.table_number).toBe(10)
+
+    // Second booking at overlapping time gets table 11 (cap 8)
+    const res2 = await request(app).post("/api/reservations").send({
+      name: "Guest 2",
+      phone: "0812-6666-0002",
+      branch_id: 1,
+      date: "2026-08-26",
+      time: "19:30",
+      party_size: 4,
+    })
+    expect(res2.status).toBe(201)
+    expect(res2.body.reservation.table_number).toBe(11)
+  })
+
+  it("returns 400 when explicitly requested table does not exist in branch", async () => {
+    const res = await request(app).post("/api/reservations").send({
+      name: "Eko",
+      phone: "0812-7777-7777",
+      branch_id: 1,
+      date: "2026-08-25",
+      time: "19:00",
+      party_size: 4,
+      table_number: 99,
+    })
+    expect(res.status).toBe(400)
+    expect(res.body).toHaveProperty("error")
+  })
 })
