@@ -19,8 +19,8 @@ const gradients = [
 
 export function OrderPage() {
   const [params] = useSearchParams()
-  const branchId = Number(params.get("branch_id")) || 0
-  const tableNumber = Number(params.get("table")) || 0
+  const [branchId, setBranchId] = useState<number>(Number(params.get("branch_id")) || 0)
+  const [tableNumber, setTableNumber] = useState<number>(Number(params.get("table")) || 0)
 
   const [step, setStep] = useState(1)
   const [name, setName] = useState("")
@@ -33,7 +33,9 @@ export function OrderPage() {
   const [error, setError] = useState("")
 
   useEffect(() => {
-    fetch("/api/dishes?branch_id=" + branchId).then((r) => r.json()).then(setDishes)
+    if (branchId > 0) {
+      fetch("/api/dishes?branch_id=" + branchId).then((r) => r.json()).then(setDishes)
+    }
     fetch("/api/sambals").then((r) => r.json()).then(setSambals)
   }, [branchId])
 
@@ -155,18 +157,67 @@ export function OrderPage() {
 
         {step === 1 && (
           <div className="mx-auto max-w-md">
-            <h2 className="font-display text-3xl text-cream">Siapa yang makan?</h2>
-            <p className="mt-2 text-sm text-cream-dim">Konfirmasi identitas untuk meja ini.</p>
+            <h2 className="font-display text-3xl text-cream">Informasi Pesanan</h2>
+            <p className="mt-2 text-sm text-cream-dim">Pilih cabang, nomor meja, dan identitas Anda.</p>
             <div className="mt-6 space-y-4">
               <label className="block">
-                <span className="mb-1.5 block text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-cream-dim">Nama</span>
-                <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nama Anda" className="w-full rounded-xl border border-line bg-ink px-3.5 py-2.5 text-sm text-cream transition focus:border-emas [color-scheme:dark]" />
+                <span className="mb-1.5 block text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-cream-dim">
+                  Cabang Restoran <span className="text-emas">*</span>
+                </span>
+                <select
+                  value={branchId}
+                  onChange={(e) => setBranchId(Number(e.target.value))}
+                  className="w-full rounded-xl border border-line bg-ink px-3.5 py-2.5 text-sm text-cream transition focus:border-emas [color-scheme:dark]"
+                >
+                  <option value={0} disabled>— Pilih Cabang Sembilu —</option>
+                  <option value={1}>Tegal (Jl. Jenderal Sudirman No. 17)</option>
+                  <option value={2}>Slawi (Jl. Raya Slawi No. 9)</option>
+                  <option value={4}>Jakarta (Jl. Senopati No. 88)</option>
+                </select>
               </label>
               <label className="block">
-                <span className="mb-1.5 block text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-cream-dim">Telepon</span>
-                <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0812-xxxx-xxxx" className="w-full rounded-xl border border-line bg-ink px-3.5 py-2.5 text-sm text-cream transition focus:border-emas [color-scheme:dark]" />
+                <span className="mb-1.5 block text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-cream-dim">
+                  Nomor Meja <span className="text-emas">*</span>
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={99}
+                  value={tableNumber || ""}
+                  onChange={(e) => setTableNumber(Math.max(0, Number(e.target.value)))}
+                  placeholder="Nomor meja (contoh: 4)"
+                  className="w-full rounded-xl border border-line bg-ink px-3.5 py-2.5 text-sm text-cream transition focus:border-emas [color-scheme:dark]"
+                />
               </label>
-              <button disabled={!name || !phone} onClick={() => setStep(2)} className="mt-4 w-full rounded-full bg-emas px-6 py-3 text-sm font-semibold text-ink transition hover:bg-emas-bright disabled:opacity-40">
+              <label className="block">
+                <span className="mb-1.5 block text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-cream-dim">
+                  Nama Tamu <span className="text-emas">*</span>
+                </span>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Nama Anda"
+                  className="w-full rounded-xl border border-line bg-ink px-3.5 py-2.5 text-sm text-cream transition focus:border-emas [color-scheme:dark]"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-cream-dim">
+                  Nomor Telepon <span className="text-emas">*</span>
+                </span>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="0812-xxxx-xxxx"
+                  className="w-full rounded-xl border border-line bg-ink px-3.5 py-2.5 text-sm text-cream transition focus:border-emas [color-scheme:dark]"
+                />
+              </label>
+              <button
+                disabled={!name.trim() || !phone.trim() || branchId <= 0 || tableNumber <= 0}
+                onClick={() => setStep(2)}
+                className="mt-4 w-full rounded-full bg-emas px-6 py-3 text-sm font-semibold text-ink transition hover:bg-emas-bright disabled:opacity-40"
+              >
                 Lanjut ke Menu →
               </button>
             </div>
@@ -177,38 +228,44 @@ export function OrderPage() {
           <div>
             <h2 className="font-display text-3xl text-cream">Pilih Sajian</h2>
             <p className="mt-2 text-sm text-cream-dim">Tap untuk menambah. Setelah selesai, atur sambal.</p>
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {dishes.map((dish, i) => {
-                const inCart = cart.find((c) => c.dish.id === dish.id)
-                return (
-                  <div key={dish.id} className={cn("overflow-hidden rounded-[2rem] border transition", inCart ? "border-emas/50" : "border-line")}>
-                    <div className={cn("relative h-32 bg-gradient-to-br", gradients[i % gradients.length])}>
-                      {dish.id === 1 && <img src={dishFish} alt="" className="h-full w-full object-cover opacity-50" />}
-                      <span className="absolute bottom-2 left-3 font-aksara text-4xl text-cream/10">{dish.aksara_no}</span>
-                    </div>
-                    <div className="p-4">
-                      <h3 className="font-display text-lg text-cream">{dish.name}</h3>
-                      <p className="mt-1 text-xs leading-relaxed text-cream-dim">{dish.description.slice(0, 60)}...</p>
-                      <div className="mt-3 flex items-center justify-between">
-                        <span className="font-display text-lg text-gold">Rp {dish.price}.000</span>
-                        {inCart ? (
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => updateQty(dish.id, -1)} className="flex h-7 w-7 items-center justify-center rounded-full border border-line text-cream-dim hover:border-emas hover:text-emas">−</button>
-                            <span className="w-4 text-center text-sm text-cream">{inCart.quantity}</span>
-                            <button onClick={() => updateQty(dish.id, 1)} className="flex h-7 w-7 items-center justify-center rounded-full border border-line text-cream-dim hover:border-emas hover:text-emas">+</button>
-                          </div>
-                        ) : (
-                          <button onClick={() => addToCart(dish)} className="rounded-full bg-emas/20 px-4 py-1.5 text-xs font-semibold text-emas transition hover:bg-emas hover:text-ink">+ Tambah</button>
+            {dishes.length === 0 ? (
+              <div className="mt-8 rounded-2xl border border-line/60 bg-ink-2/30 p-8 text-center text-cream-dim">
+                <p>Memuat sajian untuk cabang ini...</p>
+              </div>
+            ) : (
+              <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {dishes.map((dish, i) => {
+                  const inCart = cart.find((c) => c.dish.id === dish.id)
+                  return (
+                    <div key={dish.id} className={cn("overflow-hidden rounded-[2rem] border transition", inCart ? "border-emas/50" : "border-line")}>
+                      <div className={cn("relative h-32 bg-gradient-to-br", gradients[i % gradients.length])}>
+                        {dish.id === 1 && <img src={dishFish} alt="" className="h-full w-full object-cover opacity-50" />}
+                        <span className="absolute bottom-2 left-3 font-aksara text-4xl text-cream/10">{dish.aksara_no}</span>
+                      </div>
+                      <div className="p-4">
+                        <h3 className="font-display text-lg text-cream">{dish.name}</h3>
+                        <p className="mt-1 text-xs leading-relaxed text-cream-dim">{dish.description.slice(0, 60)}...</p>
+                        <div className="mt-3 flex items-center justify-between">
+                          <span className="font-display text-lg text-gold">Rp {dish.price}.000</span>
+                          {inCart ? (
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => updateQty(dish.id, -1)} className="flex h-7 w-7 items-center justify-center rounded-full border border-line text-cream-dim hover:border-emas hover:text-emas">−</button>
+                              <span className="w-4 text-center text-sm text-cream">{inCart.quantity}</span>
+                              <button onClick={() => updateQty(dish.id, 1)} className="flex h-7 w-7 items-center justify-center rounded-full border border-line text-cream-dim hover:border-emas hover:text-emas">+</button>
+                            </div>
+                          ) : (
+                            <button onClick={() => addToCart(dish)} className="rounded-full bg-emas/20 px-4 py-1.5 text-xs font-semibold text-emas transition hover:bg-emas hover:text-ink">+ Tambah</button>
+                          )}
+                        </div>
+                        {inCart && (
+                          <button onClick={() => removeItem(dish.id)} className="mt-2 text-xs text-bata/70 hover:text-bata">Hapus</button>
                         )}
                       </div>
-                      {inCart && (
-                        <button onClick={() => removeItem(dish.id)} className="mt-2 text-xs text-bata/70 hover:text-bata">Hapus</button>
-                      )}
                     </div>
-                  </div>
-                )
-              })}
-            </div>
+                  )
+                })}
+              </div>
+            )}
             <div className="mt-8 flex justify-between">
               <button onClick={() => setStep(1)} className="rounded-full border border-line px-6 py-3 text-sm text-cream-dim hover:text-cream">Kembali</button>
               <button onClick={() => setStep(3)} className="rounded-full bg-emas px-6 py-3 text-sm font-semibold text-ink transition hover:bg-emas-bright">

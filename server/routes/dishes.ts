@@ -4,12 +4,16 @@ import { db } from "../db"
 const router = Router()
 
 router.get("/", async (req, res) => {
-  const query = db("dishes")
-  if (req.query.branch_id) {
-    query.where("branch_id", Number(req.query.branch_id))
+  const branchId = Number(req.query.branch_id)
+  if (branchId > 0) {
+    const dishes = await db("dishes").where("branch_id", branchId).orderBy("id")
+    if (dishes.length > 0) {
+      res.json(dishes)
+      return
+    }
   }
-  const dishes = await query.orderBy("id")
-  res.json(dishes)
+  const allDishes = await db("dishes").orderBy("id")
+  res.json(allDishes)
 })
 
 router.get("/:id", async (req, res) => {
