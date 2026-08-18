@@ -11,6 +11,7 @@ import ordersRouter from "./routes/orders"
 import staffRouter from "./routes/staff"
 import staffOrdersRouter from "./routes/staff-orders"
 import staffReservationsRouter from "./routes/staff-reservations"
+import staffTablesRouter from "./routes/staff-tables"
 
 const app = express()
 const server = http.createServer(app)
@@ -31,6 +32,7 @@ app.use("/api/reservations", reservationsRouter)
 app.use("/api/orders", ordersRouter)
 app.use("/api/staff/orders", staffOrdersRouter)
 app.use("/api/staff/reservations", staffReservationsRouter)
+app.use("/api/staff/tables", staffTablesRouter)
 app.use("/api/staff", staffRouter)
 
 if (process.env.NODE_ENV !== "test") {
