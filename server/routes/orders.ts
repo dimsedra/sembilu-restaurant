@@ -1,5 +1,6 @@
 import { Router } from "express"
 import { db } from "../db"
+import { broadcastOrderUpdate } from "../websocket"
 
 const router = Router()
 
@@ -49,6 +50,13 @@ router.post("/", async (req, res) => {
   await db("order_items").insert(orderItems)
   const savedItems = await db("order_items").where("order_id", orderId)
   const order = await db("orders").where("id", orderId).first()
+
+  broadcastOrderUpdate({
+    event: "order_created",
+    orderId: order.id,
+    status: order.status || "pending",
+    items: savedItems,
+  })
 
   res.status(201).json({ order, items: savedItems, customer })
 })

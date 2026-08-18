@@ -1,7 +1,8 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 import request from "supertest"
 import app from "../index"
 import { db } from "../db"
+import * as websocket from "../websocket"
 
 describe("POST /api/orders", () => {
   afterEach(async () => {
@@ -26,6 +27,33 @@ describe("POST /api/orders", () => {
     expect(res.body.order.table_number).toBe(5)
     expect(res.body.items).toHaveLength(2)
     expect(res.body.customer.visit_count).toBe(1)
+  })
+
+  it("broadcasts order_created WebSocket event on order placement", async () => {
+    const broadcastSpy = vi.spyOn(websocket, "broadcastOrderUpdate")
+    const res = await request(app).post("/api/orders").send({
+      name: "Budi",
+      phone: "0813-1111-1111",
+      branch_id: 1,
+      table_number: 5,
+      items: [
+        { dish_id: 1, quantity: 2, sambal_id: 1, sambal_extra: false },
+      ],
+    })
+    expect(res.status).toBe(201)
+    const orderId = res.body.order.id
+    expect(broadcastSpy).toHaveBeenCalledTimes(1)
+    expect(broadcastSpy).toHaveBeenCalledWith({
+      event: "order_created",
+      orderId,
+      status: "pending",
+      items: expect.arrayContaining([
+        expect.objectContaining({
+          dish_id: 1,
+          quantity: 2,
+        }),
+      ]),
+    })
   })
 
   it("rejects dish not available at the branch", async () => {
