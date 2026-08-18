@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { useSearchParams } from "react-router-dom"
+import { useSearchParams, Link } from "react-router-dom"
 import type { Dish } from "@/types"
 import { cn } from "@/utils/cn"
 import dishFish from "@/assets/dish-fish.jpg"
@@ -115,9 +115,24 @@ export function OrderPage() {
           <h1 className="font-display text-4xl text-cream">Pesanan Diterima!</h1>
           <p className="mt-4 font-display text-2xl text-gold">#{result.orderId}</p>
           <p className="mt-2 text-cream-dim">Sembilan sambal gratis menyertaimu.</p>
-          <button onClick={() => { setResult(null); setStep(2); setCart([]) }} className="mt-8 rounded-full border border-emas/40 px-6 py-3 text-sm font-semibold text-emas transition hover:bg-emas hover:text-ink">
-            Pesan Lagi
-          </button>
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <Link
+              to={`/track/${result.orderId}`}
+              className="rounded-full bg-emas px-6 py-3 text-sm font-semibold text-ink transition hover:bg-emas-bright"
+            >
+              Lacak Pesanan Live →
+            </Link>
+            <button
+              onClick={() => {
+                setResult(null)
+                setStep(2)
+                setCart([])
+              }}
+              className="rounded-full border border-emas/40 px-6 py-3 text-sm font-semibold text-emas transition hover:bg-emas hover:text-ink"
+            >
+              Pesan Lagi
+            </button>
+          </div>
         </div>
       </div>
     )
