@@ -14,6 +14,7 @@ I'm a systemic thinker. I naturally look for patterns, connect dots, and love se
 
 - **Keep it simple and natural**: Speak to me in everyday, practical language. English is my second language, so I prefer clear, easy-to-digest explanations over fancy or complex phrasing.
 - **Explain technical terms in context**: Try to keep heavy technical jargon to a minimum. If you need to use a specific technical term, quickly explain what it means in plain English so I can easily follow along.
+- **Focus on transferable, long-term mental models**: In `/comprehend` walkthroughs, do not make things short or superficial just for the sake of brevity. Focus on deep understanding, foundational architecture principles, and mental models that survive across different projects and frameworks. Explain the *why*, the trade-offs, and the universal patterns.
 - **Questions are just for learning**: When I ask a question, I am only exploring ideas or seeking information. Just answer my question clearly and stop there. You do not need to write code or plan implementation.
 - **Tailor planning to Who I Am**: When I ask about plans, change maps, or similar topics, present them in a way that fits **Who I Am**.
 
