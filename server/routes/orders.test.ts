@@ -95,3 +95,42 @@ describe("GET /api/orders/:id", () => {
     expect(res.status).toBe(404)
   })
 })
+
+describe("GET /api/orders/:id/track", () => {
+  afterEach(async () => {
+    await db("order_items").del()
+    await db("orders").del()
+    await db("reservations").del()
+    await db("customers").del()
+  })
+
+  it("returns detailed tracking information including joined dish and sambal info", async () => {
+    const create = await request(app).post("/api/orders").send({
+      name: "Sari",
+      phone: "0813-8888-8888",
+      branch_id: 1,
+      table_number: 7,
+      items: [{ dish_id: 1, quantity: 2, sambal_id: 1, notes: "Extra pedas" }],
+    })
+    const orderId = create.body.order.id
+
+    const res = await request(app).get(`/api/orders/${orderId}/track`)
+    expect(res.status).toBe(200)
+    expect(res.body.order.id).toBe(orderId)
+    expect(res.body.order.table_number).toBe(7)
+    expect(res.body.customer.name).toBe("Sari")
+    expect(res.body.branch.id).toBe(1)
+    expect(res.body.items).toHaveLength(1)
+    expect(res.body.items[0]).toHaveProperty("dish_name")
+    expect(res.body.items[0]).toHaveProperty("dish_price")
+    expect(res.body.items[0]).toHaveProperty("sambal_name")
+    expect(res.body.items[0].notes).toBe("Extra pedas")
+  })
+
+  it("returns 404 for non-existent order id", async () => {
+    const res = await request(app).get("/api/orders/99999/track")
+    expect(res.status).toBe(404)
+    expect(res.body.error).toMatch(/tidak ditemukan/i)
+  })
+})
+

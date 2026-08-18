@@ -61,6 +61,39 @@ router.post("/", async (req, res) => {
   res.status(201).json({ order, items: savedItems, customer })
 })
 
+router.get("/:id/track", async (req, res) => {
+  const orderId = Number(req.params.id)
+  const order = await db("orders").where({ id: orderId }).first()
+  if (!order) {
+    res.status(404).json({ error: "Pesanan tidak ditemukan" })
+    return
+  }
+
+  const customer = order.customer_id
+    ? await db("customers").where({ id: order.customer_id }).select("name", "phone").first()
+    : null
+  const branch = await db("branches").where({ id: order.branch_id }).first()
+
+  const items = await db("order_items")
+    .join("dishes", "order_items.dish_id", "dishes.id")
+    .leftJoin("sambals", "order_items.sambal_id", "sambals.id")
+    .where("order_items.order_id", orderId)
+    .select(
+      "order_items.*",
+      "dishes.name as dish_name",
+      "dishes.price as dish_price",
+      "sambals.name as sambal_name",
+      "sambals.heat as sambal_heat_level"
+    )
+
+  res.json({
+    order,
+    customer,
+    branch,
+    items,
+  })
+})
+
 router.get("/:id", async (req, res) => {
   const order = await db("orders").where("id", Number(req.params.id)).first()
   if (!order) {
@@ -70,5 +103,6 @@ router.get("/:id", async (req, res) => {
   const items = await db("order_items").where("order_id", order.id)
   res.json({ order, items })
 })
+
 
 export default router
