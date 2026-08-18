@@ -47,6 +47,12 @@ export function Nav() {
 
         <div className="flex items-center gap-3">
           <a
+            href="/order"
+            className="hidden rounded-full border border-emas/60 px-4 py-2 text-sm font-semibold text-emas transition hover:bg-emas hover:text-ink sm:inline-flex"
+          >
+            Pesan Online
+          </a>
+          <a
             href="#reservasi"
             className="hidden rounded-full bg-emas px-5 py-2.5 text-sm font-semibold text-ink transition hover:bg-emas-bright sm:inline-flex"
           >
@@ -103,9 +109,16 @@ export function Nav() {
             </a>
           ))}
           <a
+            href="/order"
+            onClick={() => setOpen(false)}
+            className="mt-3 rounded-full border border-emas/60 px-5 py-3 text-center text-sm font-semibold text-emas transition hover:bg-emas hover:text-ink"
+          >
+            Pesan Online Sekarang
+          </a>
+          <a
             href="#reservasi"
             onClick={() => setOpen(false)}
-            className="mt-3 rounded-full bg-emas px-5 py-3 text-center text-sm font-semibold text-ink"
+            className="mt-2 rounded-full bg-emas px-5 py-3 text-center text-sm font-semibold text-ink"
           >
             Reservasi Meja
           </a>

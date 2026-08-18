@@ -76,11 +76,17 @@ export function Hero() {
 
           <div className="mt-10 flex flex-wrap items-center gap-4">
             <a
-              href="#reservasi"
+              href="/order"
               className="group inline-flex items-center gap-2 rounded-full bg-emas px-7 py-3.5 text-sm font-semibold text-ink transition hover:bg-emas-bright"
             >
-              Reservasi Meja
+              Pesan Makanan Online
               <span className="transition group-hover:translate-x-0.5">→</span>
+            </a>
+            <a
+              href="#reservasi"
+              className="inline-flex items-center gap-2 rounded-full border border-emas/40 px-7 py-3.5 text-sm font-semibold text-emas transition hover:bg-emas/10"
+            >
+              Reservasi Meja
             </a>
             <a
               href="#sajian"

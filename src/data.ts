@@ -5,6 +5,7 @@ export const nav = [
   { label: "Kisah", href: "#kisah" },
   { label: "Sajian", href: "#sajian" },
   { label: "Menu", href: "/menu" },
+  { label: "Pesan", href: "/order" },
   { label: "Sambal", href: "#sambal" },
   { label: "Lokasi", href: "#lokasi" },
 ];
