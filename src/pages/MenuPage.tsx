@@ -34,15 +34,25 @@ export function MenuPage() {
   return (
     <div className="min-h-screen bg-ink pt-24">
       <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8">
-        <div className="mb-4 flex items-center gap-3 text-emas">
-          <span className="font-aksara text-2xl leading-none">꧒</span>
-          <span className="h-px w-7 bg-emas/50" />
-          <span className="text-[0.7rem] font-semibold uppercase tracking-[0.42em] text-cream-dim">Sajian</span>
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="mb-4 flex items-center gap-3 text-emas">
+              <span className="font-aksara text-2xl leading-none">꧒</span>
+              <span className="h-px w-7 bg-emas/50" />
+              <span className="text-[0.7rem] font-semibold uppercase tracking-[0.42em] text-cream-dim">Sajian</span>
+            </div>
+            <h1 className="font-display text-4xl leading-[1.04] tracking-[-0.01em] text-cream sm:text-5xl md:text-6xl">
+              Tiap hidangan adalah pernyataan —{" "}
+              <span className="text-gold">bukan adaptasi.</span>
+            </h1>
+          </div>
+          <a
+            href="/order"
+            className="inline-flex shrink-0 items-center gap-2 rounded-full bg-emas px-7 py-3 text-sm font-semibold text-ink transition hover:bg-emas-bright"
+          >
+            Pesan Online Sekarang →
+          </a>
         </div>
-        <h1 className="font-display text-4xl leading-[1.04] tracking-[-0.01em] text-cream sm:text-5xl md:text-6xl">
-          Tiap hidangan adalah pernyataan —{" "}
-          <span className="text-gold">bukan adaptasi.</span>
-        </h1>
 
         {featured && (
           <div className="mt-14 grid items-stretch gap-8 overflow-hidden rounded-[2rem] border border-line bg-ink-2/60 lg:grid-cols-2">
@@ -57,7 +67,7 @@ export function MenuPage() {
                 <span className="font-display text-4xl text-gold">{featured.price}</span>
                 <span className="text-xs text-cream-dim">.000</span>
               </div>
-              <a href="#reservasi" className="mt-7 inline-flex w-fit items-center gap-2 rounded-full bg-emas px-6 py-3 text-sm font-semibold text-ink transition hover:bg-emas-bright">
+              <a href="/order" className="mt-7 inline-flex w-fit items-center gap-2 rounded-full bg-emas px-6 py-3 text-sm font-semibold text-ink transition hover:bg-emas-bright">
                 Pesan hidangan ini →
               </a>
             </div>
@@ -90,7 +100,7 @@ export function MenuPage() {
                     <span className="text-xs text-cream-dim">.000</span>
                   </div>
                   <a
-                    href="#reservasi"
+                    href="/order"
                     className="rounded-full border border-emas/30 px-4 py-2 text-xs font-semibold text-emas transition hover:bg-emas hover:text-ink"
                   >
                     Pesan
@@ -100,6 +110,15 @@ export function MenuPage() {
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="fixed bottom-6 right-6 z-40 sm:bottom-8 sm:right-8">
+        <a
+          href="/order"
+          className="inline-flex items-center gap-2 rounded-full bg-emas px-5 py-2.5 text-xs font-semibold text-ink shadow-lg shadow-black/40 transition hover:bg-emas-bright sm:px-6 sm:py-3 sm:text-sm"
+        >
+          Pesan Online Sekarang →
+        </a>
       </div>
     </div>
   )

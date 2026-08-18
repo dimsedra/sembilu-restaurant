@@ -62,7 +62,7 @@ export function Menu() {
                   <span className="text-xs text-cream-dim">.000</span>
                 </div>
                 <a
-                  href="#reservasi"
+                  href="/order"
                   className="mt-7 inline-flex w-fit items-center gap-2 rounded-full bg-emas px-6 py-3 text-sm font-semibold text-ink transition hover:bg-emas-bright"
                 >
                   Pesan hidangan ini →
@@ -114,7 +114,13 @@ export function Menu() {
               </ul>
             )}
           </div>
-          <div className="mt-8 text-center">
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+            <a
+              href="/order"
+              className="inline-flex items-center gap-2 rounded-full bg-emas px-7 py-3 text-sm font-semibold text-ink transition hover:bg-emas-bright"
+            >
+              Mulai Pesan Online →
+            </a>
             <a
               href="/menu"
               className="inline-flex items-center gap-2 rounded-full border border-emas/40 px-6 py-3 text-sm font-semibold text-emas transition hover:bg-emas hover:text-ink"
