@@ -25,8 +25,9 @@ I'm a systemic thinker. I naturally look for patterns, connect dots, and love se
 - **Flag blockers early**: If you notice something missing in the specs that could block us down the road, point it out and explain the situation clearly so we can figure it out together.
 - **Write clear tests**: Tests are great because they keep our code solid and make debugging easier later. Just make sure the test logs are clean and easy for me to read.
 
-## How We Do `/comprehend` & Learning
+## How We Do Walkthroughs, `/comprehend` & Learning
 
+- **Universal concepts first, then practical application**: Always start with the universal mental model, architectural pattern, or transferable engineering concept (the big picture). Once the universal foundation is clear, ground it into the practical context of what we are building right now (the concrete code, files, and implementation details).
 - **Focus on long-term, transferable knowledge**: Don't make walkthroughs short and concise just for the sake of brevity. It is completely okay for explanations to be longer and more comprehensive if they teach deeper lessons.
 - **Teach universal engineering mental models**: Connect the specific code we just built to broader, transferable software engineering principles (such as state machines, data modeling tradeoffs, race conditions, authentication boundaries, and publish/subscribe mechanics) so the knowledge stays with me across future projects.
 - **Clarity over jargon**: Deep concepts should still be taught in clear, everyday English with intuitive analogies so the mental models stick for the long haul.
