@@ -12,6 +12,7 @@ import { Footer } from "@/components/Footer"
 import { MenuPage } from "@/pages/MenuPage"
 import { OrderPage } from "@/pages/OrderPage"
 import { TrackPage } from "@/pages/TrackPage"
+import { KDSPage } from "@/pages/KDSPage"
 
 function MarqueeBand() {
   const items = [
@@ -77,6 +78,8 @@ export default function App() {
         <Route path="/menu" element={<MenuPage />} />
         <Route path="/order" element={<OrderPage />} />
         <Route path="/track/:orderId" element={<TrackPage />} />
+        <Route path="/staff/kitchen" element={<KDSPage />} />
+        <Route path="/staff/kds" element={<KDSPage />} />
       </Routes>
     </BrowserRouter>
   )
