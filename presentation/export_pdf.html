@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sembilu Restaurant — Pitch Deck PDF Export</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <!-- CDN Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" id="MathJax-script" async></script>
+
+  <style>
+    @page {
+      size: 16in 9in;
+      margin: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: auto;
+      overflow: visible !important;
+      background: #14110d;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    #pdf-print-deck {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .print-slide-page {
+      width: 16in;
+      height: 9in;
+      page-break-after: always;
+      page-break-inside: avoid;
+      box-sizing: border-box;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      background: radial-gradient(circle at 15% 15%, rgba(201, 162, 75, 0.04) 0%, transparent 45%),
+                  radial-gradient(circle at 85% 85%, rgba(184, 74, 48, 0.05) 0%, transparent 50%),
+                  var(--bg-primary);
+    }
+
+    .print-loading-notice {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: var(--accent-gold);
+      color: #14110d;
+      text-align: center;
+      padding: 1rem;
+      font-weight: 700;
+      font-family: var(--font-body);
+      font-size: 1rem;
+      z-index: 9999;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+
+    @media print {
+      .print-loading-notice {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="loading-status" class="print-loading-notice">
+    ⏳ Assembling all slide fragments for PDF export...
+  </div>
+
+  <div id="pdf-print-deck">
+    <!-- Assembled slide pages will be injected here -->
+  </div>
+
+  <script>
+    async function assembleAndPrint() {
+      const totalSlides = 6;
+      const deckContainer = document.getElementById('pdf-print-deck');
+      const statusBanner = document.getElementById('loading-status');
+
+      try {
+        for (let i = 1; i <= totalSlides; i++) {
+          const padded = String(i).padStart(2, '0');
+          const response = await fetch(`slides/slide-${padded}.html`);
+          if (!response.ok) throw new Error(`HTTP ${response.status} loading slide ${i}`);
+          
+          const html = await response.text();
+          const pageWrapper = document.createElement('div');
+          pageWrapper.className = 'print-slide-page';
+          pageWrapper.innerHTML = html;
+          deckContainer.appendChild(pageWrapper);
+        }
+
+        // Dynamic rendering hooks
+        if (window.Prism) {
+          window.Prism.highlightAllUnder(deckContainer);
+        }
+        if (window.mermaid) {
+          const nodes = deckContainer.querySelectorAll('.mermaid');
+          if (nodes.length > 0) {
+            await window.mermaid.run({ nodes });
+          }
+        }
+        if (window.MathJax?.typesetPromise) {
+          await window.MathJax.typesetPromise([deckContainer]);
+        }
+
+        // Mandatory graphics settlement pause (1000ms)
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        statusBanner.textContent = '✅ Slides ready. Opening print dialog... (Set layout to Landscape, Margins: None)';
+        setTimeout(() => {
+          window.print();
+        }, 300);
+      } catch (error) {
+        console.error(error);
+        statusBanner.textContent = '❌ Error loading slide fragments: ' + error.message;
+        statusBanner.style.background = '#d9534f';
+        statusBanner.style.color = '#fff';
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', assembleAndPrint);
+  </script>
+</body>
+</html>

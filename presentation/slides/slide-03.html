@@ -1,0 +1,109 @@
+<section class="slide" id="slide-3" data-slide-title="Architecture & Operational Flow">
+  <div class="ambient-glow-top"></div>
+  <div class="ambient-glow-bottom"></div>
+
+  <div class="slide-content">
+    <header class="slide-header">
+      <span class="category-badge">Arsitektur Terintegrasi</span>
+      <h2 class="slide-headline">Aliran Operasional End-to-End: Dari Reservasi ke Api Dapur</h2>
+      <p class="section-lead">Satu basis kode terpadu yang melayani tamu publik sekaligus tim operasional internal secara <em>real-time</em>.</p>
+    </header>
+
+    <div class="architecture-container">
+      <div class="flow-stages-row">
+        <!-- Stage 1: Guest Touchpoints -->
+        <div class="flow-card">
+          <div class="flow-card-header">
+            <h3 class="flow-card-title">1. Guest Touchpoints</h3>
+            <span class="flow-card-num">Tamu</span>
+          </div>
+          <div class="flow-card-body">
+            <div class="flow-pill-item">
+              <span class="flow-pill-dot"></span>
+              <span>QR Code Dine-in &amp; Digital Menu</span>
+            </div>
+            <div class="flow-pill-item">
+              <span class="flow-pill-dot"></span>
+              <span>Live Dish Tracking (Status Meja)</span>
+            </div>
+            <div class="flow-pill-item">
+              <span class="flow-pill-dot"></span>
+              <span>Smart Booking &amp; VIP Preferences</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Connector 1 -->
+        <div class="flow-connector">&rarr;</div>
+
+        <!-- Stage 2: Operational Core & KDS -->
+        <div class="flow-card active-core">
+          <div class="flow-card-header">
+            <h3 class="flow-card-title">2. Real-Time KDS Core</h3>
+            <span class="flow-card-num">Dapur &amp; Floor</span>
+          </div>
+          <div class="flow-card-body">
+            <div class="flow-pill-item">
+              <span class="flow-pill-dot"></span>
+              <span>State Machine (Pending &rarr; Cooking &rarr; Done)</span>
+            </div>
+            <div class="flow-pill-item">
+              <span class="flow-pill-dot"></span>
+              <span>Host Stand Check-in &amp; Table Turnover</span>
+            </div>
+            <div class="flow-pill-item">
+              <span class="flow-pill-dot"></span>
+              <span>Staff Role-Based Access (JWT Auth)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Connector 2 -->
+        <div class="flow-connector">&rarr;</div>
+
+        <!-- Stage 3: Multi-Branch Governance -->
+        <div class="flow-card">
+          <div class="flow-card-header">
+            <h3 class="flow-card-title">3. Multi-Branch Engine</h3>
+            <span class="flow-card-num">Manajemen</span>
+          </div>
+          <div class="flow-card-body">
+            <div class="flow-pill-item">
+              <span class="flow-pill-dot"></span>
+              <span>Branch-Scoped Data Isolation</span>
+            </div>
+            <div class="flow-pill-item">
+              <span class="flow-pill-dot"></span>
+              <span>Central Recipe &amp; Menu Standardization</span>
+            </div>
+            <div class="flow-pill-item">
+              <span class="flow-pill-dot"></span>
+              <span>Cross-Outlet Real-time Analytics</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tech Stack Callout Box -->
+      <div class="tech-stack-callout">
+        <span class="tech-stack-label">Teknologi Fondasi Sembilu:</span>
+        <div class="tech-badges-list">
+          <span class="tech-badge">React 19 SPA</span>
+          <span class="tech-badge">Express TypeScript</span>
+          <span class="tech-badge">Knex Query Engine</span>
+          <span class="tech-badge">State Machine KDS</span>
+          <span class="tech-badge">JWT Multi-Branch Auth</span>
+        </div>
+      </div>
+    </div>
+
+    <footer class="slide-footer">
+      <div class="footer-brand">
+        <span class="footer-brand-dot"></span>
+        <span>Sembilu Restaurant</span>
+      </div>
+      <span>Arsitektur Sistem &bull; Halaman 03 / 06</span>
+    </footer>
+  </div>
+</section>
+<!-- Notes: Explain how guest orders immediately trigger synchronized kitchen state changes without third-party delay. -->
