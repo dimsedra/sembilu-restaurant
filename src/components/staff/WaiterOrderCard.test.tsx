@@ -98,4 +98,30 @@ describe("WaiterOrderCard", () => {
     expect(screen.getByText(/Pesanan telah diantar ke Meja 3/i)).toBeDefined()
     expect(screen.queryByRole("button", { name: /Telah Diantar/i })).toBeNull()
   })
+
+  it("disables or hides serve action button when order is still cooking", () => {
+    const mockOrderCookingLocal: KDSOrder = {
+      id: 104,
+      branch_id: 1,
+      table_number: 3,
+      status: "cooking",
+      customer_name: "Mas Teguh",
+      created_at: new Date().toISOString(),
+      items: [
+        {
+          id: 2,
+          dish_id: 10,
+          dish_name: "Ikan Bakar Pantura",
+          quantity: 1,
+          status: "cooking",
+        },
+      ],
+    }
+
+    render(<WaiterOrderCard order={mockOrderCookingLocal} onServeOrder={vi.fn()} />)
+
+    expect(screen.queryByRole("button", { name: /Telah Diantar/i })).toBeNull()
+    expect(screen.getByText(/Menunggu Dapur Menyelesaikan Masakan/i)).toBeDefined()
+  })
 })
+
