@@ -470,6 +470,14 @@ export function KDSPage() {
 
           {/* Center / Right controls */}
           <div className="flex flex-wrap items-center justify-between md:justify-end gap-2.5">
+            {/* Quick Link to Waiter Screen */}
+            <a
+              href="/staff/orders"
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-cream-dim hover:text-cream hover:border-emas transition"
+            >
+              Layar Waiter / Floor
+            </a>
+
             {/* Branch Selector */}
             <div className="flex items-center gap-1.5 bg-[#241c13] border border-[#392c1e] px-2.5 py-1 rounded-xl text-xs">
               <span className="text-[#a48f6e] font-mono uppercase text-[10px]">Cabang:</span>

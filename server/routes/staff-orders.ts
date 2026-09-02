@@ -8,6 +8,7 @@ const router = Router()
 const VALID_ITEM_TRANSITIONS: Record<string, string> = {
   pending: "cooking",
   cooking: "done",
+  done: "served",
 }
 
 const ALLOWED_STAFF_ORDER_UPDATES = ["served", "paid"] as const
@@ -132,19 +133,30 @@ router.patch("/:id/items/:itemId", requireStaffAuth, async (req: AuthenticatedRe
     const updatedItem = await db("order_items").where({ id: itemId }).first()
 
     // Auto propagate parent order status
-    let newOrderStatus = order.status
+    const allItems = await db("order_items").where({ order_id: orderId })
+    const allServed = allItems.length > 0 && allItems.every((item) => item.status === "served")
+    const allDoneOrServed = allItems.length > 0 && allItems.every((item) => item.status === "done" || item.status === "served")
+    const anyCookingOrDoneOrServed = allItems.some(
+      (item) => item.status === "cooking" || item.status === "done" || item.status === "served"
+    )
 
-    if (newStatus === "cooking" && order.status === "pending") {
+    let newOrderStatus = order.status
+    if (allServed) {
+      newOrderStatus = "served"
+    } else if (allDoneOrServed) {
+      newOrderStatus = "done"
+    } else if (anyCookingOrDoneOrServed && order.status === "pending") {
       newOrderStatus = "cooking"
-      await db("orders").where({ id: orderId }).update({ status: "cooking", updated_at: db.fn.now() })
-    } else if (newStatus === "done") {
-      const allItems = await db("order_items").where({ order_id: orderId })
-      const allDone = allItems.every((item) => item.status === "done")
-      if (allDone) {
-        newOrderStatus = "done"
-        await db("orders").where({ id: orderId }).update({ status: "done", updated_at: db.fn.now() })
-      }
     }
+
+    if (newOrderStatus !== order.status) {
+      await db("orders").where({ id: orderId }).update({
+        status: newOrderStatus,
+        updated_at: db.fn.now(),
+      })
+    }
+
+    const updatedOrder = await db("orders").where({ id: orderId }).first()
 
     broadcastOrderUpdate({
       event: "order_updated",
@@ -156,6 +168,7 @@ router.patch("/:id/items/:itemId", requireStaffAuth, async (req: AuthenticatedRe
     res.json({
       item: updatedItem,
       orderStatus: newOrderStatus,
+      order: updatedOrder,
     })
   } catch (error) {
     console.error("Error updating order item status:", error)

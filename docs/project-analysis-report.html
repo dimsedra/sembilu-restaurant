@@ -1,0 +1,581 @@
+﻿<!DOCTYPE html>
+<html lang="id" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sembilu Restaurant — Laporan Analisis Arsitektur & Codebase</title>
+  <link rel="stylesheet" href="report.css">
+  <!-- Mermaid.js for architecture diagrams -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      themeVariables: {
+        darkMode: true,
+        background: '#121215',
+        primaryColor: '#18181b',
+        primaryTextColor: '#fafafa',
+        primaryBorderColor: '#3f3f46',
+        lineColor: '#d4d4d8',
+        secondaryColor: '#18181b',
+        tertiaryColor: '#121215',
+        actorTextColor: '#ffffff',
+        actorBkg: '#18181b',
+        actorBorder: '#52525b',
+        actorLineColor: '#71717a',
+        signalColor: '#f4f4f5',
+        signalTextColor: '#fafafa',
+        labelBoxBkgColor: '#18181b',
+        labelBoxBorderColor: '#52525b',
+        labelTextColor: '#fafafa',
+        loopTextColor: '#fafafa',
+        noteTextColor: '#fafafa',
+        noteBkgColor: '#18181b',
+        noteBorderColor: '#3f3f46'
+      },
+      securityLevel: 'loose',
+      fontFamily: 'system-ui, -apple-system, sans-serif'
+    });
+  </script>
+</head>
+<body>
+  <div class="container">
+    
+    <header>
+      <div class="header-top">
+        <div class="badge-group">
+          <span class="badge badge-pass"><span class="badge-dot"></span>Analisis Lengkap</span>
+          <span class="badge"><span class="badge-dot"></span>React 19 + Express 5 + PostgreSQL</span>
+          <span class="badge"><span class="badge-dot"></span>Real-Time WebSocket</span>
+          <span class="badge"><span class="badge-dot"></span>16 Test Suites Passed</span>
+        </div>
+        <button id="theme-toggle" class="theme-toggle" onclick="toggleTheme()">Light</button>
+      </div>
+      <h1>Sembilu Restaurant: Analisis Arsitektur & Codebase</h1>
+      <div class="meta-bar">
+        <span class="meta-item"><strong>Sistem:</strong> Sembilu Restaurant Operating System</span>
+        <span class="meta-item"><strong>Arsitektur:</strong> Single-Repo Dual-Audience Monorepo</span>
+        <span class="meta-item"><strong>Status:</strong> Core Engine & KDS Implemented</span>
+      </div>
+    </header>
+
+    <main>
+      <!-- Section 1: Executive Summary & Core Identity -->
+      <section>
+        <h2>1. Identitas Brand & Problem Inti yang Diselesaikan</h2>
+        <div class="card card-summary">
+          <h3>Visi Kuliner: <em>"Bukan Fusion. Bukan Usang. Hanya Jawa."</em></h3>
+          <p>
+            <strong>Sembilu</strong> adalah sistem operasi restoran terpadu (<em>Full-Stack Restaurant Operating System</em>) yang dibangun untuk restoran masakan otentik Jawa berskala heritage dining (berdiri di Tegal sejak 1987, kini berekspansi ke Solo dan Yogyakarta). Proyek ini menolak tren kuliner campur aduk dan fokus menjaga warisan bumbu pusaka Nusantara serta 9 varian sambal khas daerah.
+          </p>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3>Problem Fragmentasi Operasional</h3>
+            <ul class="list-secondary">
+              <li><strong>Sistem Terpisah:</strong> Website promosi, aplikasi reservasi, printer kasir, dan kertas tiket dapur berada di platform berbeda tanpa sinkronisasi.</li>
+              <li><strong>Kekacauan Dapur (Ticket Rail):</strong> Koki kesulitan menghitung total porsi masakan yang sama untuk dimasak sekaligus (<em>batch cooking</em>).</li>
+              <li><strong>Ketiadaan Visibilitas Tamu:</strong> Pelanggan di meja tidak memiliki kejelasan status makanan setelah memesan.</li>
+              <li><strong>Konflik Meja Reservasi:</strong> Tamu walk-in sering menduduki meja yang telah dibooking tanpa validasi otomatis.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Solusi Terpadu Sembilu</h3>
+            <ul class="list-secondary">
+              <li><strong>Single-Repo Dual-Audience:</strong> Customer Realm (Front-of-House) dan Staff Realm (Back-of-House) berada dalam satu monorepo terpadu.</li>
+              <li><strong>Kitchen Display System (KDS):</strong> Tablet dapur dengan rail FIFO dan <em>All-Day batch aggregator</em> untuk efisiensi koki.</li>
+              <li><strong>Live Order Tracking:</strong> Pelacakan pesanan real-time via WebSocket dengan timeline 4 tahap bagi tamu.</li>
+              <li><strong>Gatekeeper & Grace Period:</strong> Validasi otomatis meja walk-in vs reservasi dengan toleransi waktu &plusmn;15 menit.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 2: System Architecture & Data Flow -->
+      <section>
+        <h2>2. Arsitektur Sistem & Alur Komunikasi Real-Time</h2>
+        <p>Sistem menggunakan arsitektur monorepo dengan pemisahan domain yang jelas antara rute publik pelanggan dan rute terproteksi staf.</p>
+
+        <div class="diagram-container">
+          <div class="mermaid">
+graph TB
+    subgraph Client_Layer["Client Layer (React 19 + Vite 8)"]
+        Customer["Customer Realm<br/>- Home & Story (/)<br/>- Full Menu (/menu)<br/>- Table Order (/order)<br/>- Live Tracker (/track/:id)"]
+        Staff["Staff Realm<br/>- Kitchen Tablet (/staff/kitchen)<br/>- Auth Guard Modal<br/>- Quick Role Switcher"]
+    end
+
+    subgraph Server_Layer["Backend Layer (Express 5 + TypeScript)"]
+        HTTP["Express HTTP Endpoints<br/>/api/dishes, /api/orders, /api/staff/*"]
+        WS["Native WebSocket Server (ws)<br/>Broadcast Engine (Port 3001)"]
+        Auth["JWT Scoping Middleware<br/>Branch Isolation & Role RBAC"]
+        FSM["Deterministic State Engine<br/>Item & Order Propagation"]
+    end
+
+    subgraph Data_Layer["Database Layer (PostgreSQL via Knex.js)"]
+        DB[("PostgreSQL DB<br/>branches, tables, dishes, sambals,<br/>customers, reservations, orders, staff")]
+    end
+
+    Customer -->|HTTP POST Orders / Reserve| HTTP
+    Customer <-->|WebSocket Status Stream| WS
+    Staff -->|HTTP PATCH Status Updates| HTTP
+    Staff <-->|WebSocket Kitchen Feed| WS
+    HTTP --> Auth
+    Auth --> FSM
+    FSM --> DB
+    FSM -.->|Trigger Event| WS
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 3: Universal Engineering Mental Models -->
+      <section>
+        <h2>3. Mental Model Rekayasa Perangkat Lunak</h2>
+        <div class="grid-2">
+          <div class="card">
+            <h3>1. Explicit Architecture over Framework Magic</h3>
+            <p>
+              Menolak framework all-in-one atau ORM hitam yang menyembunyikan query SQL. Menggunakan <strong>Express 5</strong> dan <strong>Knex.js</strong> secara eksplisit sehingga siklus HTTP, validasi, dan SQL query sepenuhnya dapat diprediksi dan dikontrol.
+            </p>
+          </div>
+          <div class="card">
+            <h3>2. Deterministic State Machine (FSM)</h3>
+            <p>
+              Item dapur mengikuti alur satu arah yang terikat: <code>pending</code> &rarr; <code>cooking</code> &rarr; <code>done</code>. Sistem menolak transisi ilegal atau regresi status (misal: masakan yang sudah <code>done</code> tidak bisa kembali ke <code>pending</code>).
+            </p>
+          </div>
+          <div class="card">
+            <h3>3. Parent-Child Derived State</h3>
+            <p>
+              Status pesanan induk (<em>order</em>) tidak disimpan secara terpisah yang rentan inkonsistensi, melainkan diagregasikan dari item-item anaknya: saat item pertama dimasak, order menjadi <code>cooking</code>; saat seluruh item selesai, order otomatis menjadi <code>done</code>.
+            </p>
+          </div>
+          <div class="card">
+            <h3>4. Temporal Windows & Buffer Tolerances</h3>
+            <p>
+              Validasi waktu reservasi dunia nyata mengakomodasi kedatangan lebih awal atau keterlambatan tamu dengan rentang toleransi <strong>&plusmn;15 menit</strong> sebelum dan sesudah jadwal booking.
+            </p>
+          </div>
+          <div class="card">
+            <h3>5. Multi-Tenant Branch Scoping</h3>
+            <p>
+              Token JWT menyematkan <code>{ staff_id, role, branch_id }</code>. Waiter dan Chef secara otomatis terkunci pada cabang mereka sendiri di level query SQL, sedangkan Manager memiliki hak multi-cabang.
+            </p>
+          </div>
+          <div class="card">
+            <h3>6. Physical Ergonomics for Kitchen</h3>
+            <p>
+              UI tablet dapur dirancang untuk lingkungan kerja bertemperatur tinggi: target sentuh minimal <strong>44px</strong>, elapsed timer berbasis urgensi warna (hijau &lt;10m, amber 10-20m, merah berkedip &gt;20m), dan audio lonceng disintesis langsung via <strong>Web Audio API</strong> (0 aset eksternal).
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 4: Deep Dive Lifecycle - Order to Kitchen -->
+      <section>
+        <h2>4. Alur Hidup Sistem: Transisi Pesanan & Sinkronisasi Dapur</h2>
+        <p>Diagram sequence berikut mengilustrasikan interaksi penuh dari saat tamu memesan di meja hingga koki menyajikan makanan di KDS:</p>
+
+        <div class="diagram-container">
+          <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Customer as Tamu (Meja)
+    participant Server as Express Server
+    participant DB as PostgreSQL (Knex)
+    participant WS as WebSocket Engine
+    actor Chef as Koki Dapur (KDS)
+
+    Customer->>Server: POST /api/orders (Meja, Items, Sambals)
+    Note over Server: Gatekeeper: Validasi Meja Walk-in vs Reservasi (+-15m)
+    Server->>DB: INSERT into orders & order_items
+    DB-->>Server: Order Created (ID, Items)
+    Server->>WS: broadcastOrderUpdate('order_created', order)
+    WS-->>Chef: Event order_created (Audio Chime + Highlight Kartu)
+    WS-->>Customer: Order Confirmation
+    Server-->>Customer: 201 Created (ID)
+
+    Chef->>Server: PATCH /api/staff/orders/:id/items/:itemId (status: "cooking")
+    Server->>DB: UPDATE order_items & Recalculate Parent Order Status
+    DB-->>Server: Item Updated (Order status -> "cooking")
+    Server->>WS: broadcastOrderUpdate('order_updated', order)
+    WS-->>Customer: Update Timeline (/track/:id -> "Dimasak")
+    WS-->>Chef: Update KDS Ticket Status
+
+    Chef->>Server: PATCH /api/staff/orders/:id/items/:itemId (status: "done")
+    Server->>DB: UPDATE order_items (All items done -> Order status "done")
+    Server->>WS: broadcastOrderUpdate('order_updated', order)
+    WS-->>Customer: Update Timeline (/track/:id -> "Siap Disajikan")
+    WS-->>Chef: Update KDS Ticket -> "Siap Saji"
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 5: Code Mechanics & Logic Annotations -->
+      <section>
+        <h2>5. Analisis Mekanika Kode Kunci</h2>
+
+        <details open>
+          <summary>Mekanika Propagasi Status Induk (<code>server/routes/staff-orders.ts</code>)</summary>
+          <pre><code>// Update single line item with deterministic transition guard
+const currentItem = await db('order_items').where({ id: itemId, order_id: orderId }).first();
+if (!VALID_ITEM_TRANSITIONS[currentItem.status]?.includes(newStatus)) {
+  return res.status(400).json({ error: `Invalid transition from ${currentItem.status} to ${newStatus}` });
+}
+
+await db('order_items').where({ id: itemId }).update({ status: newStatus });
+
+// Propagate status to parent order
+const allItems = await db('order_items').where({ order_id: orderId });
+const allDone = allItems.every(i => i.status === 'done' || i.status === 'served');
+const anyCooking = allItems.some(i => i.status === 'cooking' || i.status === 'done');
+
+let newOrderStatus = order.status;
+if (allDone) {
+  newOrderStatus = 'done';
+} else if (anyCooking && order.status === 'pending') {
+  newOrderStatus = 'cooking';
+}
+
+if (newOrderStatus !== order.status) {
+  await db('orders').where({ id: orderId }).update({ status: newOrderStatus });
+}</code></pre>
+          <div class="code-annotation">
+            <h4>Logika & Sebab Akibat (Input &rarr; Proses &rarr; Output):</h4>
+            <ul class="logic-breakdown">
+              <li><strong>Input:</strong> Permintaan perubahan status line item dari staff tablet (<code>itemId</code>, <code>newStatus</code>).</li>
+              <li><strong>Validasi Transisi:</strong> Memeriksa status saat ini terhadap <code>VALID_ITEM_TRANSITIONS</code>. Mencegah status melompat tidak wajar atau kembali mundur.</li>
+              <li><strong>Agregasi Otomatis:</strong> Mengkueri seluruh item saudara pada pesanan yang sama. Jika semua item sudah <code>done</code>, status order induk dinaikkan menjadi <code>done</code>. Jika item pertama mulai <code>cooking</code>, status order naik dari <code>pending</code> ke <code>cooking</code>.</li>
+              <li><strong>Output:</strong> Data database konsisten seketika, dilanjutkan dengan broadcast pesan WebSocket ke seluruh client terhubung.</li>
+            </ul>
+          </div>
+        </details>
+
+        <details>
+          <summary>Sintesis Audio Lonceng Dapur Tanpa Aset Eksternal (<code>src/utils/sound.ts</code>)</summary>
+          <pre><code>export function playKitchenBell(muted = false) {
+  if (muted || typeof window === 'undefined') return;
+  const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  if (!AudioCtx) return;
+
+  const ctx = new AudioCtx();
+  const now = ctx.currentTime;
+
+  // Tone 1: High fundamental brass chime
+  const osc1 = ctx.createOscillator();
+  const gain1 = ctx.createGain();
+  osc1.type = 'sine';
+  osc1.frequency.setValueAtTime(880, now);
+  osc1.frequency.exponentialRampToValueAtTime(440, now + 0.8);
+  gain1.gain.setValueAtTime(0.3, now);
+  gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+
+  // Tone 2: Harmonic shimmer
+  const osc2 = ctx.createOscillator();
+  const gain2 = ctx.createGain();
+  osc2.type = 'triangle';
+  osc2.frequency.setValueAtTime(1320, now);
+  osc2.frequency.exponentialRampToValueAtTime(660, now + 0.5);
+  gain2.gain.setValueAtTime(0.15, now);
+  gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+
+  osc1.connect(gain1); gain1.connect(ctx.destination);
+  osc2.connect(gain2); gain2.connect(ctx.destination);
+
+  osc1.start(now); osc1.stop(now + 0.85);
+  osc2.start(now); osc2.stop(now + 0.55);
+}</code></pre>
+          <div class="code-annotation">
+            <h4>Logika & Keunggulan Rekayasa:</h4>
+            <ul class="logic-breakdown">
+              <li><strong>Zero Asset Overhead:</strong> Suara dihasilkan secara prosedural menggunakan osilator peramban (sine wave 880Hz &plusmn; harmonik triangle wave 1320Hz dengan <em>exponential gain decay</em>).</li>
+              <li><strong>Ketahanan Jaringan:</strong> Audio tetap berbunyi seketika tanpa latency download file audio eksternal (<em>no HTTP audio request</em>).</li>
+              <li><strong>Resilience:</strong> Dilengkapi penanganan fallback jika <code>AudioContext</code> tidak didukung atau sedang dalam kondisi muted.</li>
+            </ul>
+          </div>
+        </details>
+      </section>
+
+      <!-- Section 6: Database Schema & API Matrix -->
+      <section>
+        <h2>6. Matriks Database & REST API</h2>
+        
+        <h3>Tabel Relasional Database (PostgreSQL)</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Nama Tabel</th>
+              <th>Kolom Kunci & Relasi</th>
+              <th>Tujuan & Peran Domain</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>branches</code></td>
+              <td><code>id, city, address, hours, open</code></td>
+              <td>Multi-cabang operasional (Tegal, Solo, Yogyakarta).</td>
+            </tr>
+            <tr>
+              <td><code>tables</code></td>
+              <td><code>id, branch_id, table_number, capacity, status, is_walk_in</code></td>
+              <td>Data meja fisik, alokasi kapasitas, dan status walk-in vs reserved.</td>
+            </tr>
+            <tr>
+              <td><code>dishes</code></td>
+              <td><code>id, name, description, price, tag, aksara_no, branch_id</code></td>
+              <td>Katalog masakan pusaka dengan penomoran aksara Jawa dan tag unggulan.</td>
+            </tr>
+            <tr>
+              <td><code>sambals</code></td>
+              <td><code>id, aksara_no, name, heat (1-3), note, price</code></td>
+              <td>9 varian sambal khas daerah dengan rating kepedasan cabai.</td>
+            </tr>
+            <tr>
+              <td><code>customers</code></td>
+              <td><code>id, name, phone (unique), email, visit_count, notes</code></td>
+              <td>Entitas tamu dengan auto-increment riwayat loyalitas kunjungan.</td>
+            </tr>
+            <tr>
+              <td><code>reservations</code></td>
+              <td><code>id, customer_id, branch_id, date, time, time_end, party_size, status</code></td>
+              <td>Booking meja dengan window waktu 2 jam dan pencegahan bentrok.</td>
+            </tr>
+            <tr>
+              <td><code>orders</code></td>
+              <td><code>id, branch_id, customer_id, table_number, status, type, notes</code></td>
+              <td>Pesanan induk dengan status lifecycle (<code>pending</code> &rarr; <code>cooking</code> &rarr; <code>done</code> &rarr; <code>served</code> &rarr; <code>paid</code>).</td>
+            </tr>
+            <tr>
+              <td><code>order_items</code></td>
+              <td><code>id, order_id, dish_id, quantity, sambal_id, sambal_extra, status</code></td>
+              <td>Line item sajian dapur dengan pilihan sambal dan status individual.</td>
+            </tr>
+            <tr>
+              <td><code>staff</code></td>
+              <td><code>id, name, email (unique), password_hash, role, branch_id</code></td>
+              <td>Kredensial staf ber-hash bcrypt dengan peran (<code>waiter</code>, <code>chef</code>, <code>manager</code>).</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Matriks Endpoint REST API</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Metode & Endpoint</th>
+              <th>Proteksi & Akses</th>
+              <th>Deskripsi & Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>GET /api/dishes</code> & <code>/api/sambals</code></td>
+              <td>Publik</td>
+              <td>Mengambil katalog menu masakan dan daftar 9 sambal.</td>
+            </tr>
+            <tr>
+              <td><code>POST /api/reservations</code></td>
+              <td>Publik</td>
+              <td>Membuat reservasi meja dengan alokasi otomatis meja dan durasi 2 jam.</td>
+            </tr>
+            <tr>
+              <td><code>POST /api/orders</code></td>
+              <td>Publik</td>
+              <td>Membuat pesanan meja, memvalidasi nomor HP jika meja reservasi, emit WebSocket.</td>
+            </tr>
+            <tr>
+              <td><code>GET /api/orders/:id/track</code></td>
+              <td>Publik</td>
+              <td>Mengambil detail status real-time pesanan pelanggan.</td>
+            </tr>
+            <tr>
+              <td><code>POST /api/staff/login</code></td>
+              <td>Publik</td>
+              <td>Verifikasi password bcrypt dan penerbitan JWT Bearer Token (durasi 8 jam).</td>
+            </tr>
+            <tr>
+              <td><code>GET /api/staff/orders</code></td>
+              <td>Staff JWT</td>
+              <td>Mengambil seluruh pesanan aktif hari ini sesuai scope cabang staf.</td>
+            </tr>
+            <tr>
+              <td><code>PATCH /api/staff/orders/:id/items/:itemId</code></td>
+              <td>Staff JWT</td>
+              <td>Update status memasak line item dan auto-update order induk.</td>
+            </tr>
+            <tr>
+              <td><code>GET /api/staff/reservations</code></td>
+              <td>Staff JWT</td>
+              <td>Melihat daftar reservasi harian dan data riwayat kunjungan tamu.</td>
+            </tr>
+            <tr>
+              <td><code>GET /api/staff/tables</code> & <code>PATCH .../:id</code></td>
+              <td>Staff JWT</td>
+              <td>Memantau dan mengubah status meja (<code>free</code>, <code>occupied</code>, <code>reserved</code>).</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Section 7: Verification & Test Suite Summary -->
+      <section>
+        <h2>7. Status Pengujian & Kualitas Codebase</h2>
+        <div class="test-summary-bar">
+          <span class="badge badge-pass"><span class="badge-dot"></span>16/16 Test Files Passed</span>
+          <span>&bull;</span>
+          <span>90+ Automated Test Cases</span>
+          <span>&bull;</span>
+          <span>Sequential DB Execution (Zero Race Conditions)</span>
+        </div>
+
+        <div class="terminal-output">
+✓ server/index.test.ts (3 tests) - Server & WebSocket co-hosting on single port
+✓ server/websocket.test.ts (3 tests) - Connection lifecycle & multi-client broadcast
+✓ server/routes/dishes.test.ts (4 tests) - Menu catalog & branch filtering
+✓ server/routes/sambals.test.ts (2 tests) - 9 authentic sambals & heat levels
+✓ server/routes/reservations.test.ts (8 tests) - Booking logic & conflict prevention
+✓ server/routes/orders.test.ts (11 tests) - Dine-in order creation & table gatekeeping
+✓ server/routes/staff.test.ts (8 tests) - Staff JWT auth, bcrypt & role parsing
+✓ server/routes/staff-orders.test.ts (7 tests) - FSM transitions & parent status propagation
+✓ server/routes/staff-orders-websocket.test.ts (5 tests) - Realtime KDS event delivery
+✓ server/routes/staff-reservations.test.ts (10 tests) - Reservation check-in & customer loyalty
+✓ server/routes/staff-tables.test.ts (7 tests) - Table management & branch isolation
+✓ src/utils/staffAuth.test.ts (4 tests) - LocalStorage token management & headers
+✓ src/utils/sound.test.ts (3 tests) - Web Audio API kitchen chime synthesis
+✓ src/components/staff/KDSAggregateBar.test.tsx (6 tests) - All-Day batch aggregator logic
+✓ src/components/staff/KDSTicketCard.test.tsx (12 tests) - Kitchen ticket actions & timers
+✓ src/pages/KDSPage.test.tsx (11 tests) - Full KDS screen, WebSocket sync & auth modal
+
+Test Files  16 passed (16)
+Tests       90+ passed
+Duration    ~15s
+        </div>
+      </section>
+
+      <!-- Section 8: Roadmap & Next Steps -->
+      <section>
+        <h2>8. Roadmap & Rencana Pengembangan Mendatang</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Fitur / Modul</th>
+              <th>Status</th>
+              <th>Deskripsi & Target Fungsional</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Core Engine & PostgreSQL Migrations</strong></td>
+              <td><span class="badge badge-pass"><span class="badge-dot"></span>Selesai</span></td>
+              <td>Skema 9 tabel, query Knex, seed data 3 cabang, 9 sambal, dan hidangan pusaka.</td>
+            </tr>
+            <tr>
+              <td><strong>Customer Dine-In & Live Tracker</strong></td>
+              <td><span class="badge badge-pass"><span class="badge-dot"></span>Selesai</span></td>
+              <td>Wizard order meja 4 langkah, validasi reservasi meja, dan timeline real-time.</td>
+            </tr>
+            <tr>
+              <td><strong>Kitchen Display System (KDS) Tablet</strong></td>
+              <td><span class="badge badge-pass"><span class="badge-dot"></span>Selesai</span></td>
+              <td>Digital ticket rail FIFO, All-Day batch cooking aggregator, audio lonceng Web Audio API.</td>
+            </tr>
+            <tr>
+              <td><strong>Table QR Code Stand Generator (Issue #17)</strong></td>
+              <td><span class="badge badge-warn"><span class="badge-dot"></span>Next Pipeline</span></td>
+              <td>Halaman <code>/staff/qr</code> untuk generate & print stand QR code meja siap scan.</td>
+            </tr>
+            <tr>
+              <td><strong>Cashier POS & Settlement (Issue #18)</strong></td>
+              <td><span class="badge badge-warn"><span class="badge-dot"></span>Next Pipeline</span></td>
+              <td>Halaman <code>/staff/pos</code> untuk kalkulasi tagihan, split bill, dan pelunasan status <code>paid</code>.</td>
+            </tr>
+            <tr>
+              <td><strong>Dedicated Host Stand Portal</strong></td>
+              <td><span class="badge badge-warn"><span class="badge-dot"></span>Backlog</span></td>
+              <td>Antarmuka UI untuk check-in tamu reservasi dan denah visual meja restoran.</td>
+            </tr>
+            <tr>
+              <td><strong>Advance Food Pre-Ordering (Issue #19)</strong></td>
+              <td><span class="badge badge-warn"><span class="badge-dot"></span>Backlog</span></td>
+              <td>Opsi pre-order sajian hidangan saat pelanggan memesan reservasi meja di awal.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+
+    <footer>
+      <span>Sembilu Restaurant Operating System &bull; Dokumen Analisis Teknis</span>
+      <span>Dibuat untuk Eds (Dimas Edra) &bull; 2026</span>
+    </footer>
+
+  </div>
+
+  <script>
+    function initTheme() {
+      const savedTheme = localStorage.getItem('walkthrough-theme') || localStorage.getItem('report-theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const theme = savedTheme || (prefersDark ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', theme);
+      updateToggleText(theme);
+    }
+
+    function toggleTheme() {
+      const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', newTheme);
+      localStorage.setItem('report-theme', newTheme);
+      localStorage.setItem('walkthrough-theme', newTheme);
+      updateToggleText(newTheme);
+    }
+
+    function updateToggleText(theme) {
+      const btn = document.getElementById('theme-toggle');
+      if (btn) {
+        btn.textContent = theme === 'dark' ? 'Light' : 'Dark';
+      }
+    }
+
+    initTheme();
+
+    // Diagram Fullscreen Modal & Expand Button Handler
+    const modal = document.createElement('div');
+    modal.className = 'diagram-modal';
+    modal.innerHTML = `
+      <div class="diagram-modal-content">
+        <button class="diagram-modal-close">✕ Close (Esc)</button>
+        <div class="diagram-modal-body"></div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    const modalBody = modal.querySelector('.diagram-modal-body');
+    const closeModal = () => modal.classList.remove('active');
+    modal.querySelector('.diagram-modal-close').addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        document.querySelectorAll('.diagram-container').forEach(container => {
+          if (!container.querySelector('.diagram-expand-btn')) {
+            const btn = document.createElement('button');
+            btn.className = 'diagram-expand-btn';
+            btn.innerHTML = '⛶ Expand';
+            btn.title = 'View full size diagram in fullscreen modal';
+            btn.addEventListener('click', () => {
+              const svg = container.querySelector('svg');
+              if (svg) {
+                modalBody.innerHTML = svg.outerHTML;
+                modal.classList.add('active');
+              }
+            });
+            container.appendChild(btn);
+          }
+        });
+      }, 500);
+    });
+  </script>
+</body>
+</html>

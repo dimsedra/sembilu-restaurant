@@ -122,6 +122,35 @@ describe("T7: Staff Order Management API (/api/staff/orders)", () => {
       expect(res.status).toBe(400)
       expect(res.body.error).toMatch(/Invalid status transition/i)
     })
+
+    it("allows waiter to transition item status from done to served", async () => {
+      // Setup order with done item
+      const [order] = await db("orders")
+        .insert({
+          branch_id: 1,
+          table_number: 4,
+          status: "cooking",
+        })
+        .returning("*")
+
+      const [item] = await db("order_items")
+        .insert({
+          order_id: order.id,
+          dish_id: 1,
+          quantity: 1,
+          status: "done",
+        })
+        .returning("*")
+
+      const res = await request(app)
+        .patch(`/api/staff/orders/${order.id}/items/${item.id}`)
+        .set("Authorization", `Bearer ${waiterToken}`)
+        .send({ status: "served" })
+
+      expect(res.status).toBe(200)
+      expect(res.body.item.status).toBe("served")
+      expect(res.body.order.status).toBe("served")
+    })
   })
 
   describe("PATCH /api/staff/orders/:id", () => {
