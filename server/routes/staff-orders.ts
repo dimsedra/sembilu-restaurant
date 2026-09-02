@@ -14,6 +14,8 @@ const VALID_ITEM_TRANSITIONS: Record<string, string> = {
 const ALLOWED_STAFF_ORDER_UPDATES = ["served", "paid"] as const
 type AllowedOrderUpdate = (typeof ALLOWED_STAFF_ORDER_UPDATES)[number]
 
+const TERMINAL_OR_ADVANCED_STATUSES = ["served", "paid", "cancelled"]
+
 /**
  * Helper to check branch access for non-manager staff
  */
@@ -133,20 +135,22 @@ router.patch("/:id/items/:itemId", requireStaffAuth, async (req: AuthenticatedRe
     const updatedItem = await db("order_items").where({ id: itemId }).first()
 
     // Auto propagate parent order status
-    const allItems = await db("order_items").where({ order_id: orderId })
-    const allServed = allItems.length > 0 && allItems.every((item) => item.status === "served")
-    const allDoneOrServed = allItems.length > 0 && allItems.every((item) => item.status === "done" || item.status === "served")
-    const anyCookingOrDoneOrServed = allItems.some(
-      (item) => item.status === "cooking" || item.status === "done" || item.status === "served"
-    )
-
     let newOrderStatus = order.status
-    if (allServed) {
-      newOrderStatus = "served"
-    } else if (allDoneOrServed) {
-      newOrderStatus = "done"
-    } else if (anyCookingOrDoneOrServed && order.status === "pending") {
-      newOrderStatus = "cooking"
+    if (!TERMINAL_OR_ADVANCED_STATUSES.includes(order.status)) {
+      const allItems = await db("order_items").where({ order_id: orderId })
+      const allDoneOrServed = allItems.length > 0 && allItems.every((i) => i.status === "done" || i.status === "served")
+      const allServed = allItems.length > 0 && allItems.every((i) => i.status === "served")
+      const anyCookingOrDoneOrServed = allItems.some(
+        (i) => i.status === "cooking" || i.status === "done" || i.status === "served"
+      )
+
+      if (allServed) {
+        newOrderStatus = "served"
+      } else if (allDoneOrServed) {
+        newOrderStatus = "done"
+      } else if (anyCookingOrDoneOrServed && order.status === "pending") {
+        newOrderStatus = "cooking"
+      }
     }
 
     if (newOrderStatus !== order.status) {
