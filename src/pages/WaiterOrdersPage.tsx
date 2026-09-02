@@ -25,8 +25,9 @@ import { WaiterOrderCard } from "../components/staff/WaiterOrderCard"
 
 export const BRANCHES = [
   { id: 1, name: "Tegal" },
-  { id: 2, name: "Solo" },
-  { id: 3, name: "Yogyakarta" },
+  { id: 2, name: "Slawi" },
+  { id: 3, name: "Semarang" },
+  { id: 4, name: "Jakarta" },
 ]
 
 export type WaiterTab = "ready" | "cooking" | "served" | "all"
