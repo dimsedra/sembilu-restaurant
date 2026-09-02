@@ -78,6 +78,8 @@ export function WaiterOrdersPage() {
 
   // WebSocket Connection
   useEffect(() => {
+    if (!getStaffToken()) return
+
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
     const wsUrl = `${protocol}//${window.location.hostname}:3001`
     const ws = new WebSocket(wsUrl)
@@ -85,6 +87,7 @@ export function WaiterOrdersPage() {
 
     ws.onopen = () => setWsConnected(true)
     ws.onclose = () => setWsConnected(false)
+    ws.onerror = () => setWsConnected(false)
     ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data)
@@ -107,7 +110,7 @@ export function WaiterOrdersPage() {
     return () => {
       ws.close()
     }
-  }, [fetchOrders, isMuted])
+  }, [fetchOrders, isMuted, staffUser])
 
   // Handle Deliver Order
   const handleServeOrder = async (orderId: number) => {
