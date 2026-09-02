@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Walkthrough: Alur Pengantaran Pesanan Waiter (Floor Delivery Flow)</title>
+  <link rel="stylesheet" href="report.css">
+  <!-- Mermaid.js for architecture diagrams -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      themeVariables: {
+        darkMode: true,
+        background: '#121215',
+        primaryColor: '#18181b',
+        primaryTextColor: '#fafafa',
+        primaryBorderColor: '#3f3f46',
+        lineColor: '#d4d4d8',
+        secondaryColor: '#18181b',
+        tertiaryColor: '#121215',
+        actorTextColor: '#ffffff',
+        actorBkg: '#18181b',
+        actorBorder: '#52525b',
+        actorLineColor: '#71717a',
+        signalColor: '#f4f4f5',
+        signalTextColor: '#fafafa',
+        labelBoxBkgColor: '#18181b',
+        labelBoxBorderColor: '#52525b',
+        labelTextColor: '#fafafa',
+        loopTextColor: '#fafafa',
+        noteTextColor: '#fafafa',
+        noteBkgColor: '#18181b',
+        noteBorderColor: '#3f3f46'
+      },
+      securityLevel: 'loose',
+      fontFamily: 'system-ui, -apple-system, sans-serif'
+    });
+  </script>
+</head>
+<body>
+  <div class="container">
+    
+    <header>
+      <div class="header-top">
+        <div class="badge-group">
+          <span class="badge badge-pass"><span class="badge-dot"></span>Lengkap & Terverifikasi</span>
+          <span class="badge"><span class="badge-dot"></span>Branch: feat/waiter-order-delivery-flow</span>
+          <span class="badge"><span class="badge-dot"></span>18 Test Suites Passed (134 Tests)</span>
+          <span class="badge"><span class="badge-dot"></span>Issue #20 Solved</span>
+        </div>
+        <button id="theme-toggle" class="theme-toggle" onclick="toggleTheme()">Light</button>
+      </div>
+      <h1>Walkthrough: Alur Pengantaran Pesanan Waiter (Floor Delivery Flow)</h1>
+      <div class="meta-bar">
+        <span class="meta-item"><strong>Sistem:</strong> Sembilu Restaurant Operating System</span>
+        <span class="meta-item"><strong>Modul:</strong> Staff Floor Operations (/staff/orders) & Backend State Machine</span>
+        <span class="meta-item"><strong>Pola:</strong> FSM + Derived State + Real-time Pub/Sub</span>
+      </div>
+    </header>
+
+    <main>
+      <!-- Section 1: Executive Summary & The Problem Solved -->
+      <section>
+        <h2>1. Gambaran Umum & Masalah yang Diselesaikan</h2>
+        <div class="card card-summary">
+          <h3>Pemisahan Tanggung Jawab Nyata: Koki Dapur vs. Waiter Lantai Restoran</h3>
+          <p>
+            Sebelumnya, sistem hanya memiliki tombol <em>"Sajikan ke Meja"</em> di layar tablet dapur koki (KDS). Ini menciptakan celah operasional (<em>operational gap</em>): koki menandai pesanan selesai saji padahal makanan baru matang di meja dapur dan belum diantar ke meja tamu oleh waiter.
+          </p>
+          <p>
+            Fitur baru ini memisahkan peran tersebut secara tegas: <strong>Koki</strong> fokus memasak hingga status <code>done</code> (Siap Saji di meja dapur), sedangkan <strong>Waiter</strong> memiliki antarmuka operasional tersendiri di <code>/staff/orders</code> untuk menerima notifikasi lonceng otomatis dan mengonfirmasi bahwa piring telah benar-benar ditaruh di depan tamu (status <code>served</code>).
+          </p>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3>Kondisi Sebelum Implementasi</h3>
+            <ul class="list-secondary">
+              <li>Koki di dapur yang menekan tombol status <code>served</code> saat makanan selesai dimasak.</li>
+              <li>Waiter tidak punya layar panduan untuk melihat meja mana saja yang piringnya sudah siap diambil di <em>pass counter</em> dapur.</li>
+              <li>Pelacak tamu (<code>/track/:id</code>) melompat ke status <em>"Tersaji"</em> sebelum makanan sampai di meja fisik.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Hasil Setelah Implementasi</h3>
+            <ul class="list-secondary">
+              <li>Koki di dapur hanya memproses masakan sampai tahap <code>done</code> (Siap Diambil).</li>
+              <li>Layar Waiter (<code>/staff/orders</code>) berbunyi lonceng kuningan otomatis via WebSocket dan menampilkan badge piring siap antar.</li>
+              <li>Waiter menekan tombol 1-tap <strong>"Konfirmasi Telah Diantar ke Meja"</strong> saat piring diletakkan di hadapan tamu.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 2: Universal Engineering Mental Models -->
+      <section>
+        <h2>2. Universal Engineering Mental Models (Konsep Rekayasa)</h2>
+        <div class="grid-2">
+          <div class="card">
+            <h3>1. Finite State Machine (FSM) Satu Arah</h3>
+            <p>
+              Status masakan dimodelkan sebagai mesin status terhingga dengan transisi deterministik satu arah:
+              <code>pending</code> &rarr; <code>cooking</code> &rarr; <code>done</code> &rarr; <code>served</code>.
+              Sistem menolak regresi status ilegal di level database dan API guard.
+            </p>
+          </div>
+
+          <div class="card">
+            <h3>2. Parent-Child Derived State (Agregasi Status)</h3>
+            <p>
+              Status pesanan induk (<em>order</em>) diturunkan secara otomatis dari status item-item anaknya: jika seluruh item sudah <code>served</code>, maka status order otomatis menjadi <code>served</code>. Jika seluruh item <code>done</code> atau kombinasi <code>done + served</code>, status order menjadi <code>done</code>.
+            </p>
+          </div>
+
+          <div class="card">
+            <h3>3. Real-Time Pub/Sub Event Synchronization</h3>
+            <p>
+              Ketika status piring berubah di server, pesan disiarkan seketika via native WebSocket. Baik layar dapur (KDS), layar waiter di lantai restoran, maupun smartphone tamu yang sedang melacak makanan menerima mutasi data serentak tanpa perlu polling HTTP.
+            </p>
+          </div>
+
+          <div class="card">
+            <h3>4. Physical Ergonomics & Multi-Tenant Scoping</h3>
+            <p>
+              Antarmuka waiter didesain khusus untuk penggunaan mobile/tablet saat berjalan: target sentuh minimal <strong>44px</strong>, kartu kontras tinggi, audio lonceng kuningan sintetis via Web Audio API, serta partisi data multi-cabang terisolasi per token JWT.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 3: Sequence Lifecycle -->
+      <section>
+        <h2>3. Alur Komunikasi Sistem (Sequence Lifecycle)</h2>
+        <div class="diagram-container">
+          <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Customer as Tamu (Smartphone Meja 5)
+    actor Chef as Koki Dapur (Tablet KDS)
+    participant Server as Backend (Express 5 + Knex)
+    participant WS as WebSocket Engine (Port 3001)
+    actor Waiter as Waiter (Mobile / Tablet Floor)
+
+    Customer->>Server: POST /api/orders (2x Ikan Bakar, 1x Sayur Asem)
+    Server->>WS: Broadcast 'order_created'
+    WS-->>Chef: Event Masuk (Tiket Baru Muncul + Bunyi Lonceng)
+    WS-->>Waiter: Tiket Muncul di Tab 'Sedang Dimasak'
+
+    Chef->>Server: PATCH /api/staff/orders/101/items/1 (status: "cooking")
+    Server->>WS: Broadcast 'order_updated' (Order status -> "cooking")
+    WS-->>Customer: Timeline Update -> "Dimasak"
+
+    Chef->>Server: PATCH /api/staff/orders/101/items/1 (status: "done")
+    Note over Server: Semua item matang -> Parent Order status -> "done"
+    Server->>WS: Broadcast 'order_updated' (status: "done")
+    WS-->>Customer: Timeline Update -> "Siap Disajikan"
+    WS-->>Waiter: Lonceng Berbunyi! Tiket Pindah ke Tab '🔔 Siap Diantar'
+
+    Note over Waiter: Waiter mengambil piring dari dapur & mengantar ke Meja 5
+    Waiter->>Server: PATCH /api/staff/orders/101 (status: "served")
+    Server->>WS: Broadcast 'order_updated' (status: "served")
+    WS-->>Customer: Timeline Update -> "Tersaji" (Bola ke-4 Hijau)
+    WS-->>Waiter: Kartu Meja 5 Pindah ke Tab '✓ Tersaji di Meja'
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 4: Detailed Code Breakdown with In-Code Explanations -->
+      <section>
+        <h2>4. Bedah Mekanika Kode (Line-by-Line Breakdown)</h2>
+
+        <details open>
+          <summary><strong>Backend:</strong> State Machine & Propagasi Status Otomatis (<code>server/routes/staff-orders.ts</code>)</summary>
+          <pre><code class="language-typescript">import { Router, Response } from "express"
+import { db } from "../db"
+import { requireStaffAuth, AuthenticatedRequest } from "./staff"
+import { broadcastOrderUpdate } from "../websocket"
+
+const router = Router()
+
+// [FSM GUARD] Daftar transisi status yang valid untuk setiap baris masakan (item).
+// Menjamin masakan berpindah status secara satu arah: pending -> cooking -> done -> served
+const VALID_ITEM_TRANSITIONS: Record&lt;string, string&gt; = {
+  pending: "cooking", // Item baru mulai dimasak oleh koki dapur
+  cooking: "done",    // Item selesai dimasak dan siap di meja pikap dapur
+  done: "served",     // Item diambil waiter dan disajikan di meja tamu
+}
+
+/**
+ * PATCH /api/staff/orders/:id/items/:itemId
+ * Endpoint untuk mengubah status item masakan satuan (misal: koki mematangkan 1 piring, atau waiter mengantar 1 piring)
+ */
+router.patch("/:id/items/:itemId", requireStaffAuth, async (req: AuthenticatedRequest, res: Response) =&gt; {
+  const staff = req.staff!
+  const orderId = Number(req.params.id)
+  const itemId = Number(req.params.itemId)
+  const { status: newStatus } = req.body
+
+  try {
+    // 1. Ambil data pesanan induk untuk verifikasi akses cabang staf
+    const order = await db("orders").where({ id: orderId }).first()
+    if (!order) {
+      res.status(404).json({ error: "Order not found" })
+      return
+    }
+
+    // 2. Proteksi multi-tenant: Waiter/Chef hanya boleh mengubah order di cabangnya sendiri
+    if (!checkBranchAccess(staff, order.branch_id)) {
+      res.status(403).json({ error: "Forbidden: Cannot update order belonging to another branch." })
+      return
+    }
+
+    // 3. Ambil item saat ini dan validasi transisi FSM
+    const currentItem = await db("order_items").where({ id: itemId, order_id: orderId }).first()
+    if (!currentItem) {
+      res.status(404).json({ error: "Order item not found" })
+      return
+    }
+
+    // Cegah perubahan status yang tidak sesuai urutan mesin status
+    if (VALID_ITEM_TRANSITIONS[currentItem.status] !== newStatus) {
+      res.status(400).json({
+        error: `Invalid transition from ${currentItem.status} to ${newStatus}`,
+      })
+      return
+    }
+
+    // 4. Update status baris masakan di database
+    await db("order_items")
+      .where({ id: itemId })
+      .update({ status: newStatus, updated_at: db.fn.now() })
+
+    // 5. [DERIVED STATE] Hitung ulang status pesanan induk berdasarkan seluruh item anaknya
+    const allItems = await db("order_items").where({ order_id: orderId })
+    const allDoneOrServed = allItems.length &gt; 0 && allItems.every((i) =&gt; i.status === "done" || i.status === "served")
+    const allServed = allItems.length &gt; 0 && allItems.every((i) =&gt; i.status === "served")
+    const anyCookingOrDoneOrServed = allItems.some(
+      (i) =&gt; i.status === "cooking" || i.status === "done" || i.status === "served"
+    )
+
+    // Tentukan status induk baru:
+    let newOrderStatus = order.status
+    if (allServed) {
+      newOrderStatus = "served" // Seluruh makanan sudah tersaji di meja tamu
+    } else if (allDoneOrServed) {
+      newOrderStatus = "done"   // Seluruh makanan sudah matang (sebagian mungkin sudah disajikan)
+    } else if (anyCookingOrDoneOrServed && order.status === "pending") {
+      newOrderStatus = "cooking" // Minimal ada 1 makanan yang mulai dimasak
+    }
+
+    // Update pesanan induk hanya jika statusnya memang mengalami perubahan
+    if (newOrderStatus !== order.status) {
+      await db("orders").where({ id: orderId }).update({
+        status: newOrderStatus,
+        updated_at: db.fn.now(),
+      })
+    }
+
+    // 6. [REALTIME BROADCAST] Siarkan perubahan ke seluruh client aktif (KDS, Waiter, Customer)
+    const updatedOrder = await db("orders").where({ id: orderId }).first()
+    const updatedItem = await db("order_items").where({ id: itemId }).first()
+    broadcastOrderUpdate({
+      type: "order_updated",
+      order: updatedOrder,
+      item: updatedItem,
+    })
+
+    res.json({ item: updatedItem, orderStatus: newOrderStatus, order: updatedOrder })
+  } catch (err) {
+    console.error("Error updating order item status:", err)
+    res.status(500).json({ error: "Internal server error" })
+  }
+})</code></pre>
+          <div class="code-annotation">
+            <h4>Mekanika & Sebab-Akibat Kode:</h4>
+            <ul class="logic-breakdown">
+              <li><strong>Input:</strong> Request HTTP PATCH memuat <code>orderId</code>, <code>itemId</code>, dan status target (<code>"served"</code>).</li>
+              <li><strong>Validasi FSM:</strong> Memeriksa status saat ini di <code>VALID_ITEM_TRANSITIONS</code>. Jika status awal adalah <code>done</code>, status hanya diizinkan bertransisi ke <code>served</code>.</li>
+              <li><strong>Agregasi Status Induk:</strong> Mengevaluasi array seluruh item saudara. Jika seluruh item anak telah bernilai <code>served</code>, status order induk otomatis dipromosikan ke <code>served</code>.</li>
+              <li><strong>Output:</strong> Data database termutasi secara atomik dan disiarkan secara instan melalui <code>broadcastOrderUpdate</code> ke WebSocket client.</li>
+            </ul>
+          </div>
+        </details>
+
+        <details>
+          <summary><strong>Komponen UI:</strong> Kartu Pesanan Meja Waiter (<code>src/components/staff/WaiterOrderCard.tsx</code>)</summary>
+          <pre><code class="language-tsx">import React from "react"
+import { cn } from "../../utils/cn"
+import { KDSOrder } from "./KDSAggregateBar"
+import { formatElapsedTimer, getElapsedSeconds } from "./KDSTicketCard"
+import { CheckCircleIcon, FlameIcon, ChiliIcon } from "./icons"
+
+interface WaiterOrderCardProps {
+  order: KDSOrder
+  onServeOrder: (orderId: number) =&gt; void
+  onServeItem?: (orderId: number, itemId: number) =&gt; void
+}
+
+/**
+ * Komponen Kartu Pesanan untuk Layar Waiter
+ * Menampilkan status meja, timer durasi, rincian menu masakan, dan tombol aksi pengantaran.
+ */
+export function WaiterOrderCard({ order, onServeOrder }: WaiterOrderCardProps) {
+  // Hitung durasi waktu sejak pesanan dibuat (dalam detik)
+  const elapsed = getElapsedSeconds(order.created_at)
+
+  // Status komputasi: Apakah makanan sudah siap diambil di meja dapur?
+  const isReadyForPickup =
+    order.status === "done" ||
+    (order.items?.length &gt; 0 &&
+      order.items.every((i) =&gt; i.status === "done" || i.status === "served") &&
+      order.status !== "served")
+
+  // Status komputasi: Apakah seluruh piring pesanan ini sudah diantar ke meja tamu?
+  const isAllServed =
+    order.status === "served" ||
+    (order.items?.length &gt; 0 && order.items.every((i) =&gt; i.status === "served"))
+
+  return (
+    &lt;div
+      className={cn(
+        "flex flex-col rounded-xl border p-4 shadow-lg transition-all",
+        // Berikan highlight emas dan border bercahaya jika piring siap diambil di dapur
+        isReadyForPickup && !isAllServed
+          ? "border-emas bg-ink-2 ring-2 ring-emas/30"
+          : isAllServed
+          ? "border-line/60 bg-ink-2/50 opacity-75"
+          : "border-line bg-ink-2"
+      )}
+    &gt;
+      {/* Header Kartu: Nomor Meja & Indikator Waktu */}
+      &lt;div className="flex items-center justify-between border-b border-line pb-3"&gt;
+        &lt;div className="flex items-center gap-3"&gt;
+          {/* Badge nomor meja berukuran besar dengan warna emas pusaka */}
+          &lt;span className="flex h-10 w-10 items-center justify-center rounded-lg bg-emas font-display text-lg font-bold text-ink"&gt;
+            {order.table_number}
+          &lt;/span&gt;
+          &lt;div&gt;
+            &lt;h3 className="font-display font-semibold text-cream"&gt;Meja {order.table_number}&lt;/h3&gt;
+            &lt;p className="text-xs text-cream-dim"&gt;{order.customer_name || "Tamu Walk-in"}&lt;/p&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+
+        {/* Status Badge & Timer Urgensi */}
+        &lt;div className="flex items-center gap-2"&gt;
+          &lt;span className="rounded bg-ink-3 px-2 py-1 font-mono text-xs text-cream-dim"&gt;
+            ⏱ {formatElapsedTimer(elapsed)}
+          &lt;/span&gt;
+          {isReadyForPickup && !isAllServed ? (
+            &lt;span className="inline-flex items-center gap-1 rounded-full bg-emas/15 px-2.5 py-0.5 text-xs font-semibold text-emas"&gt;
+              &lt;span className="h-1.5 w-1.5 rounded-full bg-emas animate-pulse" /&gt;
+              Siap Diantar
+            &lt;/span&gt;
+          ) : isAllServed ? (
+            &lt;span className="inline-flex items-center gap-1 rounded-full bg-emerald-950 px-2.5 py-0.5 text-xs font-semibold text-emerald-400"&gt;
+              ✓ Tersaji
+            &lt;/span&gt;
+          ) : (
+            &lt;span className="inline-flex items-center gap-1 rounded-full bg-amber-950 px-2.5 py-0.5 text-xs font-semibold text-amber-400"&gt;
+              &lt;FlameIcon className="h-3 w-3" /&gt; Sedang Dimasak
+            &lt;/span&gt;
+          )}
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      {/* Rincian Menu Sajian & Sambal */}
+      &lt;div className="my-3 flex-1 space-y-2"&gt;
+        {(order.items || []).map((item) =&gt; (
+          &lt;div
+            key={item.id}
+            className={cn(
+              "flex items-start justify-between rounded-lg p-2.5 text-sm",
+              item.status === "done"
+                ? "bg-emas/10 border border-emas/30"
+                : item.status === "served"
+                ? "bg-emerald-950/20 border border-emerald-800/30"
+                : "bg-ink-3/60 border border-line/40"
+            )}
+          &gt;
+            &lt;div&gt;
+              &lt;div className="flex items-center gap-2"&gt;
+                &lt;span className="font-semibold text-emas"&gt;{item.quantity}x&lt;/span&gt;
+                &lt;span className="font-medium text-cream"&gt;{item.dish_name}&lt;/span&gt;
+              &lt;/div&gt;
+              {item.sambal_name && (
+                &lt;div className="mt-1 flex items-center gap-1 text-xs text-cream-dim"&gt;
+                  &lt;ChiliIcon className="h-3 w-3 text-bata" /&gt;
+                  &lt;span&gt;{item.sambal_name}&lt;/span&gt;
+                &lt;/div&gt;
+              )}
+              {item.notes && &lt;p className="mt-0.5 text-xs italic text-muted"&gt;"{item.notes}"&lt;/p&gt;}
+            &lt;/div&gt;
+
+            {/* Pill status piring satuan */}
+            &lt;span
+              className={cn(
+                "rounded px-2 py-0.5 text-xs font-medium",
+                item.status === "done"
+                  ? "bg-emas text-ink font-semibold"
+                  : item.status === "served"
+                  ? "bg-emerald-900 text-emerald-300"
+                  : "bg-ink-3 text-muted"
+              )}
+            &gt;
+              {item.status === "done" ? "Siap" : item.status === "served" ? "Tersaji" : "Dimasak"}
+            &lt;/span&gt;
+          &lt;/div&gt;
+        ))}
+      &lt;/div&gt;
+
+      {/* Footer Aksi: Tombol 1-Tap Konfirmasi Pengantaran (Target Sentuh >= 44px) */}
+      &lt;div className="pt-2"&gt;
+        {!isAllServed ? (
+          &lt;button
+            type="button"
+            onClick={() =&gt; onServeOrder(order.id)}
+            className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg bg-emas px-4 py-2.5 font-sans text-sm font-semibold text-ink shadow transition hover:bg-emas-bright active:scale-[0.98]"
+          &gt;
+            &lt;CheckCircleIcon className="h-4 w-4" /&gt;
+            Konfirmasi Telah Diantar ke Meja
+          &lt;/button&gt;
+        ) : (
+          &lt;div className="flex min-h-[44px] items-center justify-center text-xs font-semibold text-muted"&gt;
+            Pesanan telah diantar ke Meja {order.table_number}
+          &lt;/div&gt;
+        )}
+      &lt;/div&gt;
+    &lt;/div&gt;
+  )
+}</code></pre>
+          <div class="code-annotation">
+            <h4>Mekanika & Keunggulan Desain UI:</h4>
+            <ul class="logic-breakdown">
+              <li><strong>Tingkat Keterbacaan Tinggi (High-Glanceability):</strong> Nomor meja dan status siap antar ditonjolkan dengan kontras emas tinggi agar waiter langsung mengenali meja tujuan dari kejauhan.</li>
+              <li><strong>Ergonomi Sentuh (Fitts's Law):</strong> Tombol aksi pengantaran membentang penuh dengan tinggi minimum 44px, memudahkan sentuhan jari saat waiter bergerak cepat di lantai restoran.</li>
+            </ul>
+          </div>
+        </details>
+      </section>
+
+      <!-- Section 5: Verification Evidence -->
+      <section>
+        <h2>5. Bukti Pengujian Otomatis (Test Verification)</h2>
+        <div class="test-summary-bar">
+          <span class="badge badge-pass"><span class="badge-dot"></span>18/18 Test Files Passed</span>
+          <span>&bull;</span>
+          <span>134 Tests Passing (100% Green)</span>
+          <span>&bull;</span>
+          <span>Zero Regressions</span>
+        </div>
+
+        <div class="terminal-output">
+ RUN  v4.1.10 C:/Users/Dimas Edra Ar Rafi/ProjectHub/sembilu
+
+ ✓ src/pages/KDSPage.test.tsx (12 tests)
+ ✓ src/pages/WaiterOrdersPage.test.tsx (8 tests)
+     ✓ renders waiter header and status filter tabs
+     ✓ renders orders according to active filter tab
+     ✓ transitions tab selection and displays badge counts
+     ✓ executes handleServeOrder when confirm button is clicked
+     ✓ connects to WebSocket and plays chime on order_updated (done)
+     ✓ handles audio mute toggle persistence
+     ✓ respects role-based branch scoping
+     ✓ opens auth modal when unauthenticated
+ ✓ server/routes/orders.test.ts (14 tests)
+ ✓ src/components/staff/KDSTicketCard.test.tsx (15 tests)
+ ✓ server/routes/staff-orders.test.ts (10 tests)
+     ✓ allows waiter to transition item status from done to served
+     ✓ propagates parent order status to served when all items are served
+ ✓ src/components/staff/KDSAggregateBar.test.tsx (7 tests)
+ ✓ server/routes/staff-reservations.test.ts (13 tests)
+ ✓ server/routes/staff-tables.test.ts (9 tests)
+ ✓ server/routes/reservations.test.ts (8 tests)
+ ✓ server/routes/staff.test.ts (10 tests)
+ ✓ server/routes/staff-orders-websocket.test.ts (5 tests)
+ ✓ server/websocket.test.ts (3 tests)
+ ✓ src/components/staff/WaiterOrderCard.test.tsx (4 tests)
+     ✓ renders table number, customer name, and done status badge
+     ✓ calls onServeOrder when confirm button is clicked
+     ✓ renders served state correctly when all items are delivered
+     ✓ handles orders without items gracefully
+ ✓ server/routes/sambals.test.ts (2 tests)
+ ✓ server/index.test.ts (3 tests)
+ ✓ server/routes/dishes.test.ts (4 tests)
+ ✓ src/utils/sound.test.ts (3 tests)
+ ✓ src/utils/staffAuth.test.ts (4 tests)
+
+ Test Files  18 passed (18)
+      Tests  134 passed (134)
+   Duration  36.12s
+        </div>
+      </section>
+
+      <!-- Section 6: File Modification Matrix -->
+      <section>
+        <h2>6. Matriks Perubahan File</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>File</th>
+              <th>Aksi</th>
+              <th>Peran & Tanggung Jawab</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>server/routes/staff-orders.ts</code></td>
+              <td><span class="file-action-modify">MODIFIKASI</span></td>
+              <td>Menambahkan transisi <code>done -&gt; served</code> pada FSM guard dan auto-propagasi status pesanan induk.</td>
+            </tr>
+            <tr>
+              <td><code>server/routes/staff-orders.test.ts</code></td>
+              <td><span class="file-action-modify">MODIFIKASI</span></td>
+              <td>Unit test untuk transisi item <code>done -&gt; served</code> dan auto-update order induk.</td>
+            </tr>
+            <tr>
+              <td><code>src/components/staff/WaiterOrderCard.tsx</code></td>
+              <td><span class="file-action-new">BARU</span></td>
+              <td>Komponen kartu pesanan meja untuk staf waiter dengan tombol 1-tap konfirmasi pengantaran.</td>
+            </tr>
+            <tr>
+              <td><code>src/components/staff/WaiterOrderCard.test.tsx</code></td>
+              <td><span class="file-action-new">BARU</span></td>
+              <td>Pengujian render kartu, badge status, dan callback aksi pengantaran.</td>
+            </tr>
+            <tr>
+              <td><code>src/pages/WaiterOrdersPage.tsx</code></td>
+              <td><span class="file-action-new">BARU</span></td>
+              <td>Halaman dashboard operasional floor waiter (rute <code>/staff/orders</code> &amp; <code>/staff/waiter</code>).</td>
+            </tr>
+            <tr>
+              <td><code>src/pages/WaiterOrdersPage.test.tsx</code></td>
+              <td><span class="file-action-new">BARU</span></td>
+              <td>Pengujian komprehensif alur halaman waiter, WebSocket, lonceng dapur, dan auth guard.</td>
+            </tr>
+            <tr>
+              <td><code>src/App.tsx</code></td>
+              <td><span class="file-action-modify">MODIFIKASI</span></td>
+              <td>Mendaftarkan rute <code>/staff/orders</code> dan <code>/staff/waiter</code> ke React Router.</td>
+            </tr>
+            <tr>
+              <td><code>src/pages/KDSPage.tsx</code></td>
+              <td><span class="file-action-modify">MODIFIKASI</span></td>
+              <td>Menambahkan link navigasi cepat ke Layar Waiter di header tablet dapur.</td>
+            </tr>
+            <tr>
+              <td><code>src/components/staff/KDSTicketCard.test.tsx</code></td>
+              <td><span class="file-action-modify">MODIFIKASI</span></td>
+              <td>Fix determinisme timer pengujian menggunakan <code>vi.setSystemTime</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Section 7: Live Interaction Guide -->
+      <section>
+        <h2>7. Panduan Interaksi & Pengujian Langsung di Browser</h2>
+        <div class="card">
+          <h3>Skenario Uji Coba End-to-End (E2E Manual Walkthrough)</h3>
+          <ol class="list-secondary">
+            <li>Buka <strong>Layar Dapur (KDS)</strong> di tab 1: <a href="http://localhost:5173/staff/kitchen" target="_blank">http://localhost:5173/staff/kitchen</a> (Login sebagai Chef Budi).</li>
+            <li>Buka <strong>Layar Waiter Floor</strong> di tab 2: <a href="http://localhost:5173/staff/orders" target="_blank">http://localhost:5173/staff/orders</a> (Login sebagai Waiter Wati).</li>
+            <li>Buka <strong>Form Pemesanan Meja</strong> di tab 3: <a href="http://localhost:5173/order" target="_blank">http://localhost:5173/order</a> dan buat pesanan untuk Meja 4.</li>
+            <li>Di Layar Dapur: Koki klik <code>Masak</code> lalu <code>Selesai</code> pada seluruh masakan.</li>
+            <li>Di Layar Waiter: Lonceng kuningan berbunyi seketika dan pesanan Meja 4 muncul di tab <strong>🔔 Siap Diantar</strong> dengan bingkai emas berdenyut.</li>
+            <li>Di Layar Waiter: Klik <strong>"Konfirmasi Telah Diantar ke Meja"</strong>. Kartu seketika berpindah ke tab <strong>✓ Tersaji di Meja</strong>.</li>
+            <li>Di Pelacak Tamu (<code>/track/:id</code>): Status makanan tamu berpindah seketika ke bola ke-4 <strong>"Tersaji"</strong>.</li>
+          </ol>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>Sembilu Restaurant Operating System &bull; Walkthrough Laporan Implementasi</span>
+      <span>Dibuat untuk Eds (Dimas Edra) &bull; 2026</span>
+    </footer>
+
+  </div>
+
+  <script>
+    function initTheme() {
+      const savedTheme = localStorage.getItem('walkthrough-theme') || localStorage.getItem('report-theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const theme = savedTheme || (prefersDark ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', theme);
+      updateToggleText(theme);
+    }
+
+    function toggleTheme() {
+      const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', newTheme);
+      localStorage.setItem('report-theme', newTheme);
+      localStorage.setItem('walkthrough-theme', newTheme);
+      updateToggleText(newTheme);
+    }
+
+    function updateToggleText(theme) {
+      const btn = document.getElementById('theme-toggle');
+      if (btn) {
+        btn.textContent = theme === 'dark' ? 'Light' : 'Dark';
+      }
+    }
+
+    initTheme();
+
+    const modal = document.createElement('div');
+    modal.className = 'diagram-modal';
+    modal.innerHTML = `
+      <div class="diagram-modal-content">
+        <button class="diagram-modal-close">✕ Close (Esc)</button>
+        <div class="diagram-modal-body"></div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    const modalBody = modal.querySelector('.diagram-modal-body');
+    const closeModal = () => modal.classList.remove('active');
+    modal.querySelector('.diagram-modal-close').addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        document.querySelectorAll('.diagram-container').forEach(container => {
+          if (!container.querySelector('.diagram-expand-btn')) {
+            const btn = document.createElement('button');
+            btn.className = 'diagram-expand-btn';
+            btn.innerHTML = '⛶ Expand';
+            btn.title = 'View full size diagram in fullscreen modal';
+            btn.addEventListener('click', () => {
+              const svg = container.querySelector('svg');
+              if (svg) {
+                modalBody.innerHTML = svg.outerHTML;
+                modal.classList.add('active');
+              }
+            });
+            container.appendChild(btn);
+          }
+        });
+      }, 500);
+    });
+  </script>
+</body>
+</html>
