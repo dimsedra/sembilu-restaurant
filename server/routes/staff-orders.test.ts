@@ -151,6 +151,40 @@ describe("T7: Staff Order Management API (/api/staff/orders)", () => {
       expect(res.body.item.status).toBe("served")
       expect(res.body.order.status).toBe("served")
     })
+
+    it("does not regress parent order status from served to done when updating a line item", async () => {
+      // Setup order that is already marked served
+      const [order] = await db("orders").insert({
+        branch_id: 1,
+        table_number: 7,
+        status: "served",
+      }).returning("*")
+
+      const [item1] = await db("order_items").insert({
+        order_id: order.id,
+        dish_id: 1,
+        quantity: 1,
+        status: "done",
+      }).returning("*")
+
+      const [item2] = await db("order_items").insert({
+        order_id: order.id,
+        dish_id: 2,
+        quantity: 1,
+        status: "done",
+      }).returning("*")
+
+      // Waiter marks item1 as served
+      const res = await request(app)
+        .patch(`/api/staff/orders/${order.id}/items/${item1.id}`)
+        .set("Authorization", `Bearer ${waiterToken}`)
+        .send({ status: "served" })
+
+      expect(res.status).toBe(200)
+      expect(res.body.item.status).toBe("served")
+      // Parent order MUST stay served, not regress back to done
+      expect(res.body.order.status).toBe("served")
+    })
   })
 
   describe("PATCH /api/staff/orders/:id", () => {

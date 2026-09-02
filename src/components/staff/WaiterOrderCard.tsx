@@ -112,7 +112,7 @@ export function WaiterOrderCard({ order, onServeOrder, onServeItem }: WaiterOrde
 
       {/* Action Footer */}
       <div className="pt-2">
-        {!isAllServed ? (
+        {isReadyForPickup && !isAllServed ? (
           <button
             type="button"
             onClick={() => onServeOrder(order.id)}
@@ -121,9 +121,14 @@ export function WaiterOrderCard({ order, onServeOrder, onServeItem }: WaiterOrde
             <CheckCircleIcon className="h-4 w-4" />
             Konfirmasi Telah Diantar ke Meja
           </button>
-        ) : (
+        ) : isAllServed ? (
           <div className="flex min-h-[44px] items-center justify-center text-xs font-semibold text-muted">
             Pesanan telah diantar ke Meja {order.table_number}
+          </div>
+        ) : (
+          <div className="flex min-h-[44px] items-center justify-center rounded-lg border border-line bg-ink-3/40 text-xs font-medium text-cream-dim">
+            <FlameIcon className="mr-1.5 h-3.5 w-3.5 text-bata" />
+            Menunggu Dapur Menyelesaikan Masakan
           </div>
         )}
       </div>

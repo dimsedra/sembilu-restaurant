@@ -318,4 +318,33 @@ describe("WaiterOrdersPage Component", () => {
 
     expect(screen.getByText("Autentikasi Kitchen Display")).toBeDefined()
   })
+
+  it("does not initiate WebSocket connection when staff token is absent", () => {
+    staffAuth.clearStaffAuth()
+    const wsSpy = vi.spyOn(global, "WebSocket" as any)
+
+    render(<WaiterOrdersPage />)
+
+    expect(wsSpy).not.toHaveBeenCalled()
+  })
+
+  it("handles WebSocket error event by setting connection status to offline", async () => {
+    render(<WaiterOrdersPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Live")).toBeDefined()
+    })
+
+    const ws = mockWebSocketInstances[0]
+    expect(ws).toBeDefined()
+
+    // Simulate error
+    await act(async () => {
+      if (ws.onerror) ws.onerror()
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText("Offline")).toBeDefined()
+    })
+  })
 })
