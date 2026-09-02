@@ -71,6 +71,8 @@ describe("KDSTicketCard Component", () => {
 
   beforeEach(() => {
     vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-09-02T12:00:00.000Z"))
+    baseOrder.created_at = new Date("2026-09-02T11:57:00.000Z").toISOString()
   })
 
   afterEach(() => {

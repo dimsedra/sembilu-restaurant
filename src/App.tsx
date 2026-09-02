@@ -13,6 +13,7 @@ import { MenuPage } from "@/pages/MenuPage"
 import { OrderPage } from "@/pages/OrderPage"
 import { TrackPage } from "@/pages/TrackPage"
 import { KDSPage } from "@/pages/KDSPage"
+import { WaiterOrdersPage } from "@/pages/WaiterOrdersPage"
 
 function MarqueeBand() {
   const items = [
@@ -80,6 +81,8 @@ export default function App() {
         <Route path="/track/:orderId" element={<TrackPage />} />
         <Route path="/staff/kitchen" element={<KDSPage />} />
         <Route path="/staff/kds" element={<KDSPage />} />
+        <Route path="/staff/orders" element={<WaiterOrdersPage />} />
+        <Route path="/staff/waiter" element={<WaiterOrdersPage />} />
       </Routes>
     </BrowserRouter>
   )
